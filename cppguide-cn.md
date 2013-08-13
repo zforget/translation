@@ -136,3 +136,120 @@ dir/foo.cc和dir2/foo2.h通常在同一目录中（比如base/basictypes_test.cc
 #include "foo/public/bar.h"
 ```
 
+## 作用域
+
+### 命名空间
+.cc文件中鼓励使用匿名命名空间。使用具名命名空间时，选择基于工程的名字，尽可能使用其路径。不要使用using指令（ _应该是指不能使用using namespace吧？_ ）。
+
+#### 定义：
+命名空间把全局作用域划分为独立的具名作用域，以此可以有效防止全局作用域中的命名冲突。
+
+#### 优点：
+命名空间在类（可嵌套的）外又提供了一层命名轴线（也是可嵌套的）。
+
+比如，如果两个工程的全局作用域中都有一个名为Foo的类，这在编译或进行时就会造成冲突。如果每个工程都把它们的代码放在一个命名空间中，这样project1::Foo和project2:Foo就是两个不同的符号，自然没有冲突。
+
+#### 缺点：
+正是由于和类一样提供了额外的（都是可嵌套的）名字轴线，命名空间具有一些迷惑性。
+
+在头文件中使用匿名空间很容易违背C++的唯一定义原则（ODR，One Definition Rule）。
+
+#### 结论：
+要根据以下策略使用命名空间。要像示例中那样在命名空间结束处使用注释。
+
+##### 匿名空间
+- 匿名空间在.cc中是允许的，甚至是被鼓励的，以此可以避免命名冲突：
+
+```C++
+namespace {                           // 这个一个.cc文件中的代码
+
+// 命令空间的内容不缩进
+enum { kUnused, kEOF, kError };        // Commonly used tokens.
+bool AtEof() { return pos_ == kEOF; }  // Uses our namespace's EOF.
+
+}  // namespace
+```
+尽管如此，特定类相关的文件作用域声明，可以在类中被声明为类型、静态成员或静态成员函数，而不是某个匿名空间的成员。
+
+- 不要在.h文件中使用匿名空间。
+
+##### 具名空间
+具名空间应该像下面这样使用：
+- 使用命名空间把除头文件包含，gflags定义/声明以及类的前置声明以外的整个代码包装起来，以别于其它命令空间：
+
+```C++
+// In the .h file
+namespace mynamespace {
+
+// 所有声明都置于命名空间中。
+// 注意没有缩进
+class MyClass {
+ public:
+  ...
+  void Foo();
+};
+
+}  // namespace mynamespace
+
+// In the .cc file
+namespace mynamespace {
+
+// 函数定义在命名空间作用域中
+void MyClass::Foo() {
+  ...
+}
+
+}  // namespace mynamespace
+```
+通常.cc文件会有更多复杂细节，包括引用其它命名空间中的类。
+
+```C++
+#include "a.h"
+
+DEFINE_bool(someflag, false, "dummy flag");
+
+class C;  // 全局命名空间中类C的前置声明
+namespace a { class A; }  // a::A 的前置声明
+
+namespace b {
+
+...code for b...         // Code goes against the left margin.
+
+}  // namespace b
+```
+- 不要在std空间中声明任何东西，甚至不要前置声明标准库的类。在std空间中声明东西会产生不确定的行为，比如不可移植。要声明标准库中的东西，包含相应的头文件就好了。
+- 不要使用using指令来引入一个命名空间中的所有名字。
+
+```C++
+// 禁止！！！ -- 这会污染命令空间
+using namespace foo;
+```
+- 在.cc文件中的任何地方，.h文件中的函数、方法以及类中都可以使用using声明
+
+```C++
+// 在.cc文件这是允许的
+// .h文件中，必须是在函数、方法或类内部
+using ::foo::bar;
+```
+-  在.cc文件任何地方，在包装整个.h文件的命名空间内的任何地方，以及在函数和方法中，都允许使用命名空间别名。
+
+```C++
+// .cc文件中为常用的起短名
+namespace fbz = ::foo::bar::baz;
+
+// .h文件中为常用的起短名
+namespace librarian {
+// 下面这些别名在所有包含此头文件的文件中均可见（当然是在librarian空间中）:
+// 所以一个工程中别名的选择应该保持一致
+namespace pd_s = ::pipeline_diagnostics::sidetable;
+
+inline void my_inline_function() {
+  // 只在一个函数或方法作用域中的命名空间别名.
+  namespace fbz = ::foo::bar::baz;
+  ...
+}
+}  // namespace librarian
+```
+注意，头文件中的别名在任何包含它的文件中均可见，所以公共头文件（那些要在工程外使用的）和它们传递包含的头文件中都要避免使用别名，这是保证公共API尽可能小的举措之一。
+
+
