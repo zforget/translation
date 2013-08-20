@@ -454,10 +454,47 @@ class Foo {
 };
 ```
 ## 结构体 VS 类
+只持有数据的被动对象才能作为结构体;其它的都应该用类。
+
+C++中struct关键字和class关键字的行为几乎一样。我们给每个关键字添加了自己的语义，所以你应该为你定义的数据类型使用合适的关键字。
+
+结构体只能用在只持有数据的被动对象上，并且可以有相关的常量，但是除了存取数据成员外没有任何其它功能。对数据成员的存取都是通过直接访问而不是调用方法。结构体的方法都不是私有的，但是仅限于操作数据成员，如，构造函数，析构函数，```Initialize()```，```Reset()```，```Validate()```。
+
+如果需要更多功能，类更合适。如果不确定，就用类。
+
+为了与STL保持一致，对于functors和traits你可以使用结构体代替类。
+
+注意结构体和类的成员变量有不同的[命名规则](#变量名)。
+
+## 继承
+组合通常都比继承更合适。当使用继承时，只能用公有继承。
+
+### 定义：
+当一个子类继承一个基类时，他就包含了父类中定义的所有数据和操作。实践中，继承在C++中有两种主要用法：实现继承，实际代码都被子类继承; 还有接口继承，只有方法名被继承。
+
+### 优点：
+
+Pros: Implementation inheritance reduces code size by re-using the base class code as it specializes an existing type. Because inheritance is a compile-time declaration, you and the compiler can understand the operation and detect errors. Interface inheritance can be used to programmatically enforce that a class expose a particular API. Again, the compiler can detect errors, in this case, when a class does not define a necessary method of the API.
+
+Cons: For implementation inheritance, because the code implementing a sub-class is spread between the base and the sub-class, it can be more difficult to understand an implementation. The sub-class cannot override functions that are not virtual, so the sub-class cannot change implementation. The base class may also define some data members, so that specifies physical layout of the base class.
+
+Decision:
+
+All inheritance should be public. If you want to do private inheritance, you should be including an instance of the base class as a member instead.
+
+Do not overuse implementation inheritance. Composition is often more appropriate. Try to restrict use of inheritance to the "is-a" case: Bar subclasses Foo if it can reasonably be said that Bar "is a kind of" Foo.
+
+Make your destructor virtual if necessary. If your class has virtual methods, its destructor should be virtual.
+
+Limit the use of protected to those member functions that might need to be accessed from subclasses. Note that data members should be private.
+
+When redefining an inherited virtual function, explicitly declare it virtual in the declaration of the derived class. Rationale: If virtual is omitted, the reader has to check all ancestors of the class in question to determine if the function is virtual or not.
+
 
 # Google的奇技淫巧
 # 其它C++特性
 # 命名
+## 变量名
 # 注释
 # 格式
 # 规则特例
