@@ -507,26 +507,53 @@ C++中struct关键字和class关键字的行为几乎一样。我们给每个关
 ** 注意：**该规则在Windows下有个[特例](#windows代码)。
 
 ## 接口
-Interfaces
+满足下面条件的类允许使用Interface作为后缀，但不是强制的。
+
+### 定义：
+满足下面要求的类被称为纯接口：
+
+- 只有公共的纯虚方法("= 0")以及静态方法（需要下文提到的析构函数）。
+- 没有非静态数据成员。
+- 不需要定义任何构造函数。如果提供了构造函数，那么一定是无参并且protected的。
+- 如果是一个子类，只能从满足这些条件的被标以Interface后缀的类继承。
+
+由于声明了纯虚方法，接口类不能被直接实例化。为了确保接口的所有实现都能正确销毁，接口类必须提供一个虚析构函数（必须不是纯虚的，尽管这违反了第一个条件）。关于这一点，在Stroustrup的《The C++ Programming Language, 3rd Edition》中的第12.4节有详细描述。
+
+### 优点：
+一个类被标以Interface后缀可以提醒其它人一定不能给它添加实现的方法或非静态数据成员。这个在[多重继承](#多重继承)中尤为重要。另外，对于Java程序员，接口的概念已经深入人心。
+
+### 缺点：
+Interface后缀使类名变长，可能会给阅读和理解带来不便。同时，接口属性作为一种实现细节不应暴露给使用者。
+
+### 结论：
+只有当一个类满足上述条件时才可以使用Interface后缀。反过来我们不做要求：满足上述条件的类不强制以Interface为后缀。
+
+## 运算符重载
+Operator Overloading
 link ▽
-Classes that satisfy certain conditions are allowed, but not required, to end with an Interface suffix.
+Do not overload operators except in rare, special circumstances.
 
-Definition:
+Definition: A class can define that operators such as + and / operate on the class as if it were a built-in type.
 
-A class is a pure interface if it meets the following requirements:
+Pros: Can make code appear more intuitive because a class will behave in the same way as built-in types (such as int). Overloaded operators are more playful names for functions that are less-colorfully named, such as Equals() or Add(). For some template functions to work correctly, you may need to define operators.
 
-    It has only public pure virtual ("= 0") methods and static methods (but see below for destructor).
-    It may not have non-static data members.
-    It need not have any constructors defined. If a constructor is provided, it must take no arguments and it must be protected.
-    If it is a subclass, it may only be derived from classes that satisfy these conditions and are tagged with the Interface suffix.
+Cons: While operator overloading can make code more intuitive, it has several drawbacks:
 
-An interface class can never be directly instantiated because of the pure virtual method(s) it declares. To make sure all implementations of the interface can be destroyed correctly, the interface must also declare a virtual destructor (in an exception to the first rule, this should not be pure). See Stroustrup, The C++ Programming Language, 3rd edition, section 12.4 for details.
+    It can fool our intuition into thinking that expensive operations are cheap, built-in operations.
+    It is much harder to find the call sites for overloaded operators. Searching for Equals() is much easier than searching for relevant invocations of ==.
+    Some operators work on pointers too, making it easy to introduce bugs. Foo + 4 may do one thing, while &Foo + 4 does something totally different. The compiler does not complain for either of these, making this very hard to debug.
 
-Pros: Tagging a class with the Interface suffix lets others know that they must not add implemented methods or non static data members. This is particularly important in the case of multiple inheritance. Additionally, the interface concept is already well-understood by Java programmers.
+Overloading also has surprising ramifications. For instance, if a class overloads unary operator&, it cannot safely be forward-declared.
 
-Cons: The Interface suffix lengthens the class name, which can make it harder to read and understand. Also, the interface property may be considered an implementation detail that shouldn't be exposed to clients.
+Decision:
 
-Decision: A class may end with Interface only if it meets the above requirements. We do not require the converse, however: classes that meet the above requirements are not required to end with Interface.
+In general, do not overload operators. The assignment operator (operator=), in particular, is insidious and should be avoided. You can define functions like Equals() and CopyFrom() if you need them. Likewise, avoid the dangerous unary operator& at all costs, if there's any possibility the class might be forward-declared.
+
+However, there may be rare cases where you need to overload an operator to interoperate with templates or "standard" C++ classes (such as operator<<(ostream&, const T&) for logging). These are acceptable if fully justified, but you should try to avoid these whenever possible. In particular, do not overload operator== or operator< just so that your class can be used as a key in an STL container; instead, you should create equality and comparison functor types when declaring the container.
+
+Some of the STL algorithms do require you to overload operator==, and you may do so in these cases, provided you document why.
+
+See also Copy Constructors and Function Overloading.
 
 
 # Google的奇技淫巧
