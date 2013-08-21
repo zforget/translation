@@ -473,22 +473,60 @@ C++中struct关键字和class关键字的行为几乎一样。我们给每个关
 当一个子类继承一个基类时，他就包含了父类中定义的所有数据和操作。实践中，继承在C++中有两种主要用法：实现继承，实际代码都被子类继承; 还有接口继承，只有方法名被继承。
 
 ### 优点：
+通过原样复用基类代码，实现继承减少了代码量。由于继承是编译期声明的，程序员和编译器都可以理解操作并检查错误。接口继承可用以强制暴露特定的API。在这种情况下，当一个类没有定义必要的API方法时，编译器也可以检查到。
 
-Pros: Implementation inheritance reduces code size by re-using the base class code as it specializes an existing type. Because inheritance is a compile-time declaration, you and the compiler can understand the operation and detect errors. Interface inheritance can be used to programmatically enforce that a class expose a particular API. Again, the compiler can detect errors, in this case, when a class does not define a necessary method of the API.
+### 缺点：
+对于实现继承，实现子类的代码在基类和子类间传播，这使得理解一个实现更为困难。子类不能重写非虚函数，所以子类也不能改变其实现。基类可能也定义了一些数据成员，所以还需要指明基类的物理布局。
 
-Cons: For implementation inheritance, because the code implementing a sub-class is spread between the base and the sub-class, it can be more difficult to understand an implementation. The sub-class cannot override functions that are not virtual, so the sub-class cannot change implementation. The base class may also define some data members, so that specifies physical layout of the base class.
+### 结论：
+所有的继承都应该是公有的。如果你想要一个私有继承，那么你应该把基类的实例作为成员包含进来。
 
-Decision:
+不要过度使用实现继承。使用组合往往更合适。试着把继承的使用限制在“is-a”的情况：只有```Bar```确实是一种```Foo```时，```Bar```才能作为```Foo```的子类。
 
-All inheritance should be public. If you want to do private inheritance, you should be including an instance of the base class as a member instead.
+尽可能使用虚析构函数。如果类中有虚方法，那么析构函数就一定要是虚方法。
 
-Do not overuse implementation inheritance. Composition is often more appropriate. Try to restrict use of inheritance to the "is-a" case: Bar subclasses Foo if it can reasonably be said that Bar "is a kind of" Foo.
+仅对于那些可能在子类中访问的成员函数才使用protected。注意数据成员都应该是私有的。
 
-Make your destructor virtual if necessary. If your class has virtual methods, its destructor should be virtual.
+重定义一个继承的虚函数，要在声明中显式使用virtual关键字。原因是：如果省略virtaul，为了搞清楚一个函数是不是虚函数，读者就需要检查所有的父类。
 
-Limit the use of protected to those member functions that might need to be accessed from subclasses. Note that data members should be private.
+## 多重继承
+多重继承只有极少的情况下有用。只有在最多一个基类有实现，其它的基类都是被标以Interface后缀的[纯接口](#接口)时，我们才允许使用多重继承。
 
-When redefining an inherited virtual function, explicitly declare it virtual in the declaration of the derived class. Rationale: If virtual is omitted, the reader has to check all ancestors of the class in question to determine if the function is virtual or not.
+### 定义：
+多重继承允许一个子类可以有多个基类。我们需要把纯接口的基类和有实现的基类加以区别。
+
+### 优点：
+多重继承可能让你比单继承（见[继承](#继承)）复用更多的代码。
+
+### 缺点：
+多重继承真正有用的情况极少。当多重继承看似适用时，你往往可以发现另一种更明确，更干净的解决方案。
+
+### 结论：
+多重继承只有在除第一个基类外都是[纯接口](#接口)时才允许使用。为了确保它们是纯接口，必须以Interface为后缀。
+
+** 注意：**该规则在Windows下有个[特例](#Windows代码)。
+
+## 接口
+Interfaces
+link ▽
+Classes that satisfy certain conditions are allowed, but not required, to end with an Interface suffix.
+
+Definition:
+
+A class is a pure interface if it meets the following requirements:
+
+    It has only public pure virtual ("= 0") methods and static methods (but see below for destructor).
+    It may not have non-static data members.
+    It need not have any constructors defined. If a constructor is provided, it must take no arguments and it must be protected.
+    If it is a subclass, it may only be derived from classes that satisfy these conditions and are tagged with the Interface suffix.
+
+An interface class can never be directly instantiated because of the pure virtual method(s) it declares. To make sure all implementations of the interface can be destroyed correctly, the interface must also declare a virtual destructor (in an exception to the first rule, this should not be pure). See Stroustrup, The C++ Programming Language, 3rd edition, section 12.4 for details.
+
+Pros: Tagging a class with the Interface suffix lets others know that they must not add implemented methods or non static data members. This is particularly important in the case of multiple inheritance. Additionally, the interface concept is already well-understood by Java programmers.
+
+Cons: The Interface suffix lengthens the class name, which can make it harder to read and understand. Also, the interface property may be considered an implementation detail that shouldn't be exposed to clients.
+
+Decision: A class may end with Interface only if it meets the above requirements. We do not require the converse, however: classes that meet the above requirements are not required to end with Interface.
 
 
 # Google的奇技淫巧
@@ -498,4 +536,5 @@ When redefining an inherited virtual function, explicitly declare it virtual in 
 # 注释
 # 格式
 # 规则特例
+### Windows代码
 # 结束语
