@@ -504,7 +504,7 @@ C++中struct关键字和class关键字的行为几乎一样。我们给每个关
 ### 结论：
 多重继承只有在除第一个基类外都是[纯接口](#接口)时才允许使用。为了确保它们是纯接口，必须以Interface为后缀。
 
-** 注意：**该规则在Windows下有个[特例](#windows代码)。
+**注意：**该规则在Windows下有个[特例](#windows代码)。
 
 ## 接口
 满足下面条件的类允许使用Interface作为后缀，但不是强制的。
@@ -529,39 +529,45 @@ Interface后缀使类名变长，可能会给阅读和理解带来不便。同�
 只有当一个类满足上述条件时才可以使用Interface后缀。反过来我们不做要求：满足上述条件的类不强制以Interface为后缀。
 
 ## 运算符重载
-Operator Overloading
-link ▽
-Do not overload operators except in rare, special circumstances.
+除了极少数特殊情况，不要重载运算符。
 
-Definition: A class can define that operators such as + and / operate on the class as if it were a built-in type.
+### 定义：
+一个类可以定义作用于此类的`+`和`/`等运算符，使其可以像内建运算符一样使用。
 
-Pros: Can make code appear more intuitive because a class will behave in the same way as built-in types (such as int). Overloaded operators are more playful names for functions that are less-colorfully named, such as Equals() or Add(). For some template functions to work correctly, you may need to define operators.
+### 优点：
+一个类和内建类型（如`int`）行为一致，这使代码看上去更直观。重载的运算符比形如`Equals()`和`Add()`的函数名更出彩。为了使有些模板函数正确工作，你可能需要定义操作符。
 
-Cons: While operator overloading can make code more intuitive, it has several drawbacks:
+### 缺点：
+尽管重载运算符使代码更直观，它却有几个缺点：
 
-    It can fool our intuition into thinking that expensive operations are cheap, built-in operations.
-    It is much harder to find the call sites for overloaded operators. Searching for Equals() is much easier than searching for relevant invocations of ==.
-    Some operators work on pointers too, making it easy to introduce bugs. Foo + 4 may do one thing, while &Foo + 4 does something totally different. The compiler does not complain for either of these, making this very hard to debug.
+- 会混淆视听，让我们误以为一些耗时的操作和内建操作一样轻巧。
+- 查找重载运算符的调用点变得困难得多。查找`Equals()`要比查找相关的`==`调用容易得多。
+- 有些运算符也操作指针，重载它们很容易引入bug。`Foo + 4`做一件事，`&Foo + 4`可能与之完全不同。编译器对这两种情况都不会提示，这使得调试异常困难。
 
-Overloading also has surprising ramifications. For instance, if a class overloads unary operator&, it cannot safely be forward-declared.
+重载还有想像不到的副作用。如，一个类重载了一元操作符`operator&`，那么它就不能安全的前置声明了。
 
-Decision:
+### 结论：
+通常都不要重载运算符。特别是赋值运算符(`operator=`)更容易出错，更应该避免重载。如果需要你可以定义`Equals()`和`CopyFrom()`函数。同时，如果一个类有一丁点可能被前置声明，那么在任何情况下都要避免重载危险的一元操作符`operator&`。
 
-In general, do not overload operators. The assignment operator (operator=), in particular, is insidious and should be avoided. You can define functions like Equals() and CopyFrom() if you need them. Likewise, avoid the dangerous unary operator& at all costs, if there's any possibility the class might be forward-declared.
+然而，还是有极少的情况你需要重载一个运算符以便与模板或“标准”C++类（如用以打印日志的`operator<<(ostream&, const T&)`）交互。只有有充分正当的理由才能重载，但你还是要尽量避免这种情况。特别不要为了使你的类可以作为STL容器的键值而重载`operator==`和`operator<`，这时，你应该在声明容器时创建判断相等和比较大小的仿函数类型。
 
-However, there may be rare cases where you need to overload an operator to interoperate with templates or "standard" C++ classes (such as operator<<(ostream&, const T&) for logging). These are acceptable if fully justified, but you should try to avoid these whenever possible. In particular, do not overload operator== or operator< just so that your class can be used as a key in an STL container; instead, you should create equality and comparison functor types when declaring the container.
+一些STL算法要求你重载`operator==`，这时你可以这样做，但是要在文档中说明原因。
 
-Some of the STL algorithms do require you to overload operator==, and you may do so in these cases, provided you document why.
-
-See also Copy Constructors and Function Overloading.
+参考[拷贝构造函数](#拷贝构造函数)和[函数重载](#函数重载)。
 
 
 # Google的奇技淫巧
+
 # 其它C++特性
+## 函数重载
 # 命名
 ## 变量名
+
 # 注释
+
 # 格式
+
 # 规则特例
 ### Windows代码
+
 # 结束语
