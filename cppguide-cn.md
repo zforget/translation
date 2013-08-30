@@ -1108,7 +1108,64 @@ auto d = {1.23};        // d的类型是 initializer_list<double>。
 auto d = double{1.23};  // 好 -- d的类型是double，而不是 initializer_list。
 ```
 ## Boost
+只使用Boost中被认可的库。
+
+## 定义：
+[Boost库集](http://www.boost.org)是一组受欢迎的经过同行评审的，免费开源的C++库。
+## 优点：
+Boost库普遍质量很高，可移植性好，并且填补了C++标准库中一些重要的空白，如类型特性(type traits)，更好的绑定器，以及更好的智能指针。它也实现了标准库的TR1扩展。
+## 缺点：
+一些Boost库提倡的编程实践可读性不好，如元编程和其它高级模板技巧	，以及过度追求函数式编程。
+## 结论：
+为了对代码维护者和阅读者维持高度的可读性，我们只允许Boost库的一个经验证的子集。目前允许下述Boost库：
+- [Call Traits](http://www.boost.org/libs/utility/call_traits.htm)，来自boost/call_traits.hpp
+- [Compressed Pair](http://www.boost.org/libs/utility/compressed_pair.htm)，来自boost/compressed_pair.hpp
+- [The Boost Graph Library(BGL)](http://www.boost.org/libs/graph/)，来自boost/graph，除了序列化（adj_list_serialize.hpp）、并行/分布算法和数据结构（boost/graph/parallel/*和boost/graph/distributed/*）。
+- [Property Map](http://www.boost.org/libs/property_map/)，来自boost/property_map，除了并行/分布属性map（boost/property_map/parallel/*）。
+- [Iterator](http://www.boost.org/libs/iterator/)中处理迭代器定义的部分：boost/iterator/iterator_adaptor.hpp,boost/iterator/iterator_facade.hpp, and boost/function_output_iterator.hpp
+- [Polygon](http://www.boost.org/libs/polygon/)中处理构造沃罗诺伊图（Voronoi Diagram）的部分，这部分不依赖Polygon其它部分：boost/polygon/voronoi_builder.hpp, boost/polygon/voronoi_diagram.hpp, and boost/polygon/voronoi_geometry_type.hpp
+- [Bitmap](http://www.boost.org/libs/bimap/)，来自boost/bitmap
+
+我们正在积极考虑添加其它Boost特性，所以这个列表以后会不断扩展。
+
+下面的库也允许使用，但是不被鼓励，因为它们已经被C++11标准库取代了：
+- [Array](http://www.boost.org/libs/array/)，来自boost/array.hpp：用[`std::array`](http://en.cppreference.com/w/cpp/container/array)代替。
+- [Pointer Container](http://www.boost.org/libs/ptr_container/)，来自boost/ptr_container：使用[std::unique_ptr](http://en.cppreference.com/w/cpp/memory/unique_ptr)的容器代替。
+
 ## C++11
+只使用C++11（即先前的C++0x）中被认可的库和语言扩展。在你的工程中使用C++11特性之前先考虑一下对其它环境的可移植性问题。
+
+### 定义：
+C++11是ISO的C++标准的最新版本。对语言和库都作了重要改动。
+
+### 优点：
+C++11已经成为官方标准，终将会被越来越多的C++编译器支持。它标准化了一些我们已经在使用的通用C++扩展，允许对一些操作速记，并且有一些性能和安全性提升。
+
+### 缺点：
+C++11实际上比之前的标准要复杂得多（1300页对800页），并且许多开发者都对其不太熟悉。一些特性对代码可读性和可维护性的长期影响尚不得而知。我们不知道相关工具（gcc, icc, clang, Eclipse等）什么时候才能一致地支持C++11那么多特性。
+
+和Boost库一样，一些C++11扩展所鼓励的编程实践也会降低可读性，如去掉了对阅读代码有帮助冗余检查（如类型名），还有鼓励模板元编译。其它复制了现有系统已有的功能的扩展，这可能导致混乱和转换成本。
+### 结论
+只使用被认可的C++11库和语言特性。目前只有下面的特性被认可：
+- `auto`（只对局部变量）
+- `constexpr`（要确保是常量）
+- 使用中间不带空格的`>>`来结束多重模板参数，如`set<list<string>>`在C++03中需要像这样加空格`set<list<string> >`。
+- 基于范围的`for`循环。
+- 在字面数值上使用`LL`和`ULL`后缀来确保其类型至少是64位宽。
+- 可变参数宏（但是宏是不被鼓励的）。
+- 头文件`<algorithm>`和`<numeric>`中所有的STL算法
+- 用局部类型作为模板参数
+- `nullptr`和`nullptr_t`
+- `static_assert`
+- `<array>`中的一切
+- `<tuple>`中的一切
+- 可变参数模板
+- 可以使用别名模板（新的`using`语法）。当可以使用`typedef`时就不要用别名声明。
+- `unique_ptr`，有限制（[见下](#unique_ptr)）
+- 大括号初始化语法。详情见[相关章节](#大括号初始化)。
+
+其它特性将逐个被验证。避免写与C++11不兼容的代码（即使可以在C++03下工作）。
+
 ## unique_ptr
 
 # 命名
