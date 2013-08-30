@@ -908,15 +908,205 @@ for (unsigned int i = foo.Length()-1; i >= 0; --i) ...
 ```
 这段代码永远都不会结束！有时gcc会发现并提醒你，便是通常都不会。同样的bug，在比较有符号和无符号数时也会产生。基本上，是C语言的类型提升机制使无符号类型的行为不同于预期。
 
-所有使用断言来文档化一个变量不能为负，不要使用无符号类型
-
+所有使用断言来文档化一个变量不能为负，不要使用无符号类型。
 
 ## 64位移植性
+代码应该是64位和32位都支持的。要时刻考虑到打印，比较和结构体对齐等问题。
+- `printf()`的有些指示符不能在32位和64位之间很好的移植。C99定义了一些可移植的指示符。 不幸的是MSVC7.1支持得不全，且标准本身也有所遗漏，所以我们有时不得不定义自己的丑陋版本（按标准头文件inttypes.h的风格）。
+
+ ```C++
+ // size_t的printf的宏，按inttypes.h风格
+ #ifdef _LP64
+ #define __PRIS_PREFIX "z"
+ #else
+ #define __PRIS_PREFIX
+ #endif
+
+ // 在printf中格式化字符串的%后使用这些宏，在32/64位下都可以获得正确行为，像这样：
+ // size_t size = records.size();
+ // printf("%"PRIuS"\n", size);
+
+ #define PRIdS __PRIS_PREFIX "d"
+ #define PRIxS __PRIS_PREFIX "x"
+ #define PRIuS __PRIS_PREFIX "u"
+ #define PRIXS __PRIS_PREFIX "X"
+ #define PRIoS __PRIS_PREFIX "o"
+ ```
+
+ |类型                   | 不要使用        |使用                   |备注        |
+|:-------------------:|:-----------:|:------------------:|:-------:|
+ |`void *`(或任何指针类型)|%1x          |%p                  |         |
+ |int64_t              |%qd,%lld     |%"PRId64"           |         |
+ |uint64_t             |%qu,%llu,%llx|%"PRIu64", %"PRIx64"|         |
+ |size_t               |%u           |%"PRIuS", %"PRIxS"  |C99中是%zu| 
+ |ptrdiff_t            |%d           |%"PRIdS"            |C99中是%zd|
+注意`PRI*`这些宏展成后会由编译器拼接成独立字符串。因此如果你使用非常量的格式化字符串，应该插入值而非宏名。仍然可以包含长度指示符，如使用`PRI*`宏时在`%`后面。综上所述，举个例子，`printf("x=%30"PRIuS"\n",x)`在32位Linux上会展开成`printf(x=%30" "u" "\n", x)`，编译器看来就是`printf("x = %30u\n",x)`。
+- 记住`sizeof(void *)`不等于`sizeof(int)`。如果需要和指针一样大小的整数，需要使用`intptr_t`。
+- 你要小心结构体对齐，特别是对那些需要保存在磁盘上的结构体。在64位系统上，任何含有`int64_t`或`uint64_t`数据成员的类或结构体都会以8字节对齐。如果你需要32位代码和64位代码在磁盘上共享它，就必须要确保在两种架构上以一致的方式打包。大部分编译器都提供了改变结构体对齐方式的方法。gcc可以使用`__attribute__((packed))`，MSVC则提供了`#pragma pack()`和`__declspec(align())`。
+- 创建64位常量时要使用`LL`或`ULL`后缀。如：
+
+ ```C++
+ int64_t my_value = 0x123456789LL;
+ uint64_t my_mask = 3ULL << 48;
+ ```
+- 如果确实需要在32位和64位使用不同的代码，使用`#ifdef _LP64`来区分。（但是应尽量避免这样使用，应保持代码修改的局部化。）
+
 ## 预处理宏
+使用宏要特别小心。优选函数、枚举和`const`变量。
+
+宏意味着你看到的代码和编译器看到的代码是不一样的。这可能引入非预期的行为，特别是当宏拥有全局作用域时。
+
+庆幸的是，宏在C++中不像在C中那样必须。当宏用以内联性能关键的代码时，可以使用内联函数；当宏用以保存常量时，可以使用`const`变量；当宏用以“缩写”一长变量名时，可以使用引用；当使用宏来条件编译代码时。。。好吧，避免那样做（当然有例外，就是头文件使用`#define`保护以避免重复包含）。宏让测试变得异常困难。
+
+宏可以做一些其它技术做不到的事，你可以在一些代码库，尤其中底层库中看到。其中有些特性（像字符串化（`#`），和连接`##`等）都不能通过语言本身实现。但决定使用宏之前，一定要认真考虑是否有其它替代方案。
+
+以下使用模式可以避免宏的许多问题，如果你使用宏，请尽量遵循以下几条：
+- 不要在.h文件中定义宏。
+- 紧挨着使用之前定义宏，用完马上`#undef`掉。
+- 在替换成你自己的宏之前不要只是简单`#undef`掉已有的宏，你应该选择一个看起来不会冲突的名字。
+- 不要使用展开后会破坏C++代码结构的宏，至少也应将行为用文档详细描述。
+- 不要使用`##`来生成函数/类/变量名.
+
 ## 0和nullptr/NULL
+整数用`0`，实数用`0.0`，指针用`nullptr`或`NULL`，字符（串）用`'\0'`。
+
+整数用`0`，实数用`0.0`。这两点没有争议。
+
+对于指针（地址值），有`0`和`NULL`两个选择（C++中还有`nullptr`）。对于允许使用C++11标准的工程，使用`nullptr`。对于C++03的工程，我们使用`NULL`，因为它看起来更像个指针。实际上，一些编译器提供了特殊定义的`NULL`，以给出有用的警告信息，尤其中`sizeof(NULL)`和`sizeof(0)`不相等的情况。
+
+对字符（串）使用`\0`。这是正确的类型同时使代码更易读。
+
 ## sizeof
+相对于`sizeof(类型)`，优选`sizeof(变量名)`。
+
+当你想要一个特定变量的大小时，使用`sizeof(变量名)`。`sizeof(变量名)`会随变量类型的变化更新。在与特定变量无关时你才可以使用`sizeof(类型)`，如在管理外部或内部数据格式的代码中，就不方便使用相应C++类型的变量。
+```C++
+Struct data;
+memset(&data, 0, sizeof(data));   // 好！
+```
+```C++
+memset(&data, 0, sizeof(Struct)); // 不好！
+```
+```C++
+if (raw_size < sizeof(int)) { // 可以
+  LOG(ERROR) << "compressed record not big enough for count: " << raw_size;
+  return false;
+}
+```
+
 ## auto
+只对于那些凌乱的类型名才使用`auto`避免。只要有利于可读性就继续使用显式的类型声明，永远不要在局部变量之外使用`auto`。
+
+### 定义：
+在C++11中，一个auto类型的变量的实际类型会和初始化它的表达式匹配。你可以在以拷贝方式初始化变量时，或绑定引用时使用`auto`。
+```C++
+vector<string> v;
+...
+auto s1 = v[0];         // 生成一个v[0]的拷贝
+const auto& s2 = v[0];  // s2是v[0]的引用
+```
+### 优点：
+C++的类型名有时非常长且笨重，特别是涉及模板和命名空间时更是如此。在下面这样的语句中
+```C++
+sparse_hash_map<string, int>::iterator iter = m.find(val);
+```
+返回类型难以阅读，并掩盖了代码的主要目的。改成下面这样就好读多了：
+```C++
+auto iter = m.find(val);
+```
+
+没有`auto`，在有些表达式中我们要写两次类型名，而这对于代码阅读者没有任何价值，如
+```C++
+diagnostics::ErrorStatus* status = new　diagnostics::ErrorStatus("xyz");
+```
+`auto`使得合理使用中间变量变得更容易，减少了显示写出它们类型的麻烦。
+
+### 缺点：
+有时使用显式的类型使代码更清晰，特别是当一个变量初始化时要依赖远处声明的东西时。像在下面的表达式中：
+```C++
+auto i = x.Lookup(key);
+```
+如果`x`是在几百行代码之前声明的，`i`的类型就不明显了。
+
+程序员需要理解`auto`和`const auto&`的不同，否则就会在不必要的地方发生拷贝。
+
+`auto`和C++11中的大括号初始化一起用可能会引起困惑。下面的声明是不同的：
+```C++
+auto x(3);  // Note: parentheses.
+auto y{3};  // Note: curly braces.
+```
+`x`是一个`int`，而`y`是一个`initializer_list`。通常不可见的代理类型也有同样的问题。
+
+如果`auto`变量是接口的一部分，如，是头文件中的常量，程序员就可能在改变其值时无意中改变了其类型，这会导致非预期的API剧烈变化。
+
+### 结论：
+`auto`只对局部变量是允许的。对文件作用域或命名空间作用域的变量，以及类的成员变量都不要使用`auto`。不要把大括号初始化列表赋值给一个`auto`变量。
+
+`auto`关键字还被用在一个无关的C++特性中：它是以“trailing return type”（延时判断函数返回值类型）方式声明函数语法的一部分。以“trailing return type”方式声明函数是不允许的。
+
 ## 大括号初始化
+你可以使用大括号初始化。
+
+在C++03中，聚合类型（没有构造函数的数组和结构体）可以使用大括号初始化。
+```C++
+struct Point { int x; int y; };
+Point p = {1, 2};
+```
+C++11把这种语法扩展到了所有数据类型，这种形式被称为brace-init-list。下面是一些使用示例。
+```C++
+// 包含几个元素的Vector
+vector<string> v{"foo", "bar"};
+
+// 和上面一样，这种形式要求initializer_list的构造函数不能是explicit的。
+// 否则你应该选择其它形式。
+vector<string> v = {"foo", "bar"};
+
+// 包含pair列表的Map。嵌套的braced-init-lists也能工作。
+map<int, st5rring> m = {{1, "one"}, {2, "2"}};
+
+// braced-init-list可以隐式转换成返回值类型。
+vector<int> test_function() {
+  return {1, 2, 3};
+}
+
+// 遍历braced-init-list.
+for (int i : {-1, -2, -3}) {}
+
+// 用braced-init-list调用函数
+void test_function2(vector<int> v) {}
+test_function2({1, 2, 3});
+```
+自定义数据类型也可以定义使用`initializer_list`的构造函数，它会自动从braced-init-list创建：
+```C++
+class MyType {
+ public:
+  // initializer_list是底层初始化列表的引用，所以可以传值
+  MyType(initializer_list<int> init_list) {
+    for (int element : init_list) {}
+  }
+};
+MyType m{2, 3, 5, 7};
+```
+最后，大括号初始化也可以在没有`initializer_list`构造函数时调用普通构造函数。
+```C++
+double d{1.23};
+// 只要MyOtherTypeinitializer_list没有构造函数，就调用普通构造函数。
+class MyOtherType {
+ public:
+  explicit MyOtherType(string);
+  MyOtherType(int, string);
+};
+MyOtherType m = {1, "b"};
+// 如果相应的构造函数是explicit的，你就不能使用"= {}"的形式。
+MyOtherType m{"b"};
+```
+不要把braced-init-list赋值给一个`auto`局部变量。在列表中只有一个值的情况下，会引起误解。
+```C++
+auto d = {1.23};        // d的类型是 initializer_list<double>。
+```
+```C++
+auto d = double{1.23};  // 好 -- d的类型是double，而不是 initializer_list。
+```
 ## Boost
 ## C++11
 ## unique_ptr
