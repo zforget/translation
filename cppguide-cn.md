@@ -1254,12 +1254,108 @@ enum UrlTableErrors { ...
 ```
 
 ## 变量命名
+**变量名都是小写字母，单词使用下划线隔开。类成员以下划线结尾。如，`my_exciting_local_variable`，`my_exciting_member_variable_`**
+
+### 普通变量名
+如：
+```c++
+string table_name;  // 好 - 使用下划线
+string tablename;   // 好 - 所有的字母都是小写
+
+string tableName;   // 不好 - 大小写混合
+```
+### 类数据成员
+类数据成员（也叫实例变量或成员变量）和普通变量一样，是小写字母加可选的下划线，但是最后要以一个下划线结尾。
+```c++
+string table_name_;  // 好 - 下划线结尾
+string tablename_;   // 好
+```
+### 结构体变量
+结构体的数据成员应该和普通变量一样命名，结尾不需要和类成员一样的下划线。
+```c++
+struct UrlTableProperties {
+  string name;
+  int num_entries;
+}
+```
+什么时候用结构体而不是用类请见[结构体 VS 类](#结构体-vs类)一节。
+
+### 全局变量
+对全局变量命名没有特殊要求，它本来也极少使用，但如果你非要用一个全局变量，考虑使用`g_`或其它的前缀来使其很容易和局部变量区分开。
+
 ## 常量命名
+**用`k`跟着大小写混合的形式命名常量：`kDaysInAWeek`。**
+
+对所有编译期的常量，不管是局部的，全局的还是一个类中的，都遵循和其它变量稍微不同的命名约定。使用`k`跟着首字母大写的单词来命名。
+```c++
+const int kDaysInAWeek = 7;
+```
+
 ## 函数命名
+**普通函数使用大小写混合模式命名；存取函数要和变量名匹配：`MyExcitingFunctions()`，`MyExcitingMethod()`，`my_exciting_member_variable()`，`set_my_exciting_member_variable()`。**
+
+### 普通函数
+函数名应该以大写字母开头，中间的每一个单词都首字母大写。不需要下划线。
+
+如果函数在碰到某些错误时会崩溃，你应该在函数名后面加上`OrDie`。这些函数都是生产环境中使用的代码，且在常规操作时有可能会失败。
+```c++
+AddTableEntry()
+DeleteUrl()
+OpenFileOrDie()
+```
+### 存取函数
+**存取函数（get/set函数）应该和它们操作的变量名匹配。下面摘录了一个类，这个类有一个名为`num_entries_`的成员变量。**
+```c++
+class MyClass {
+ public:
+  ...
+  int num_entries() const { return num_entries_; }
+  void set_num_entries(int num_entries) { num_entries_ = num_entries; }
+
+ private:
+  int num_entries_;
+};
+```
+非常短小的内联函数也可以使用小写字母。如，那些特别轻量的函数，轻的你在循环中调用都不会缓存其返回值，这时使用小写字母是可以接受的。
+
 ## 命名空间命名
+**命名空间名字都是小写的，基于工程名和目录结构：`google_awsome_project`。**
+
+关于命名空间的讨论详见[命名空间](##命名空间)。
+
 ## 枚举命名
+**枚举应该和常量或宏一样命名：或`kEnumName`或`ENUM_NAME`。**
+
+每个枚举值应该优先以常量的形式命名。不过按宏方式命名也是可以接受的。枚举名，`UrlTableErrors`（以及`AlternateUrlTableErrors`），是一个类型，因此使用大小写混合模式。
+```c++
+enum UrlTableErrors {
+  kOK = 0,
+  kErrorOutOfMemory,
+  kErrorMalformedInput,
+};
+enum AlternateUrlTableErrors {
+  OK = 0,
+  OUT_OF_MEMORY = 1,
+  MALFORMED_INPUT = 2,
+};
+```
+2009年1月之前，本指南还建议将枚举按宏一样命名。这会引起枚举值和宏之间的命名冲突，所以改为以常量风格命名。新代码应该尽量使用常量风格，但没有必要修改旧代码，除非它们产生了编译问题。
+
 ## 宏命名
+**通常都不需要定义宏，不是吗？如果你定义了宏，看起来应该是这样的：`MY_MACRO_THAT_SCARES_SMALL_CHILDREN`。**
+
+请查看对[宏](#宏)的描述：通常都不应该使用宏。但是如果确实需要宏，应该以全大写字母加下划线来命名。
+```c++
+#define ROUND(x) ...
+#define PI_ROUNDED 3.0
+```
 ## 命名规则的例外
+**如果你要命名的东西和已有的C/C++代码中的类似，你应该遵循已有的命名约定。**
+- `bigopen()` : 函数名，以`open()`方式 
+- `uint` : `typedef` 
+- `bigpos` : 结构体或类, 参照了`pos`的形式 
+- `sparse_hash_map` : STL相似，遵循STL命名约定
+- `LONGLONG_MAX` : 常量，如同`INT_MAX` 
 
 # 注释
 ## 注释风格
