@@ -1592,9 +1592,212 @@ bool success = CalculateSomething(interesting_value,
 我们使用空格缩进。不要在你的代码中使用制表符。你应该设置你的编辑器来把tab键变成空格。
 
 ## 函数声明和定义
+**返回值类型和函数名放在同一行上，参数也尽量放在同一行上。**
+
+函数看上去应该这样：
+```c++
+ReturnType ClassName::FunctionName(Type par_name1, Type par_name2) {
+  DoSomething();
+  ...
+}
+```
+如果你的一行太长放不下所有参数：
+```c++
+ReturnType ClassName::ReallyLongFunctionName(Type par_name1, Type par_name2,
+                                             Type par_name3) {
+  DoSomething();
+  ...
+}
+```
+抑或是连一个参数都放不下：
+```c++
+ReturnType LongClassName::ReallyReallyReallyLongFunctionName(
+    Type par_name1,  // 4个空格缩进
+    Type par_name2,
+    Type par_name3) {
+  DoSomething();  // 2个空格缩进
+  ...
+}
+```
+需要指明几点：
+- 返回值总是和函数名在同一行上。
+- 左圆括号也总是和函数名在同一行上。
+- 左括号和函数名之间没有空格。
+- 括号和参数之间没有空格。
+- 左大括号总是和最后一个参数在同一行上。
+- 右大括号或者单独一行，或者（如果不违背其它规则）和左大括号在同一行上。
+- 右小括号和左大括号之间要有一个空格。
+- 所有参数都要具名，声明和实现时都要有标识名。
+- 所有参数都应该尽量对齐。
+- 默认缩进是2个空格。
+- 换行的参数使用4字节缩进。
+
+如果有参数没有使用，在函数定义时把这个变量名注释出来：
+```c++
+// 接口中总是使用具名参数
+class Shape {
+ public:
+  virtual void Rotate(double radians) = 0;
+}
+
+// 声明中总是使用具名参数
+class Circle : public Shape {
+ public:
+  virtual void Rotate(double radians);
+}
+
+// 定义时注释未使用的参数名
+void Circle::Rotate(double /*radians*/) {}
+```
+```c++
+// 不好 - 如果有人以后想实现这个函数，这个变量的含义就不清楚
+void Circle::Rotate(double) {}
+```
 ## 函数调用
+**尽量放在同一行，否则换行圆括号中的实参。**
+
+函数调用形式如下：
+```c++
+bool retval = DoSomething(argument1, argument2, argument3);
+```
+如果参数不能放在同一行上，就应该断到多行，后面的每一行都和第一个参数对齐。不要在左括号后和右括号前不要有空格。
+```c++
+bool retval = DoSomething(averyveryveryverylongargument1,
+                          argument2, argument3);
+```
+如果函数有太多参数，考虑每行一个来使代码更易读：
+```c++
+bool retval = DoSomething(argument1,
+                          argument2,
+                          argument3,
+                          argument4);
+```
+参数也可以都放在函数名下面的行上，一行一个：
+```c++
+if (...) {
+  ...
+  ...
+  if (...) {
+    DoSomething(
+        argument1,  // 4 space indent
+        argument2,
+        argument3,
+        argument4);
+  }
+```
+特别是当函数签名太长放在同一行时会超过一行的最大[长度](#行长度)，更要如此。
+
 ## 大括号初始化列表
+**尽量在一行上，否则在左大括号处换行。**
+
+尽量把所有的东西都放到一行上。如果不能放到一行上，左大括号应该是其所在行的最后一个字符，且右大括号应该是其所在行的第一个字符。
+```c++
+// 单行大括号列表示例。
+return {foo, bar};
+functioncall({foo, bar});
+pair<int, int> p{foo, bar};
+
+// 需要换行时。
+MyType m = {
+  superlongvariablename1,
+  superlongvariablename2,
+  {short, interior, list},
+  {
+    interiorwrappinglist,
+    interiorwrappinglist2
+  }
+};
+
+// 在函数调用中换行。
+function({
+           wrapped, long,
+           list, here
+         });
+
+// 如果变量名确实很长。
+function(
+    {
+      wrapped,
+      list
+    });
+```
+
 ## 条件语句
+**尽量括号中不要有空格。`else`关键字另起一行。**
+
+一个基本的条件语句有两种可接受的形式。一种在小括号和条件之间有空格，另一种没有。
+
+最常用的形式是没有空格的。另一种也可以，但是要保持一致。如果你在修改一个文件，使用已有的格式。对于新代码，使用同一目录或同一工程中的形式。如果不确定并且没有个人倾向，就不要用空格。
+```c++
+if (condition) {  // 小括号里没有空格
+  ...  // 2个空格缩进
+} else if (...) {  // 和右大括号在同一行的else语句。
+  ...
+} else {
+  ...
+}
+```
+如果你选择在小括号中添加空格：
+```c++
+if ( condition ) {  // 小括号中有空格 - 少用
+  ...  // 2个空格缩进
+} else {  // 和右大括号在同一行的else语句。
+  ...
+}
+```
+注意无论何种形式，你都必须在`if`和左小括号之间加空格。如果有大括号，右小括号和左大括号之间也要有空格。
+```c++
+if(condition)     // 不好 - if后面缺了空格。
+if (condition){   // 不好 - {后面缺了空格。
+if(condition){    // 更不好
+```
+```c++
+if (condition) {  // 好 - if后和{前都有合适的空格。
+```
+如果可以加强可读性，短的条件语句可以放在一行。只有在代码行非常精简并且没有使用`else`语句时才能这样。
+```c++
+if (x == kFoo) return new Foo();
+if (x == kBar) return new Bar();
+```
+当`if`语句有`else`子句时，这是不允许的：
+```c++
+// 不允许 - IF语句在有ELSE时还放在同一行上
+if (x) DoThis();
+else DoThat();
+```
+通常，单行语句不需要花括号，但是如果你喜欢也可以使用；有复杂条件或语句的条件或循环语句使用花括号更易读。一些工程要求`if`必必须要有对应的大括号。
+```c++
+if (condition)
+  DoSomething();  // 2个空格缩进。
+
+if (condition) {
+  DoSomething();  // 2个空格缩进。
+}
+```
+然而，如果`if-else`语句的某一部分使用了花括号，其它的部分也必须要使用：
+```c++
+// 不允许 - IF使用了花括号而ELSE没有
+if (condition) {
+  foo;
+} else
+  bar;
+
+// 不允许 - ELSE使用了花括号而IF没有
+if (condition)
+  foo;
+else {
+  bar;
+}
+```
+```c++
+// 因为一部分使用了花括号，所以IF和ELSE都需要使用
+if (condition) {
+  foo;
+} else {
+  bar;
+}
+```
+
 ## 循环和Switch语句
 ## 指针和引用表达式
 ## 布尔表达式
