@@ -1212,6 +1212,7 @@ int wgc_connections;       // 只有你的团队知道是什么意思
 int pc_reader;             // 许多东西都可以缩写成"pc"
 int cstmr_id;              // 删除了中间的字母
 ```
+
 ## 文件命名
 **文件名应该都是小写字母。可以包含下划线（_）和破折号（-），用什么要遵循你项目的约定，如果没有标准，就用“_”。**
 
@@ -1358,15 +1359,205 @@ enum AlternateUrlTableErrors {
 - `LONGLONG_MAX` : 常量，如同`INT_MAX` 
 
 # 注释
+尽管注释写起来很痛苦，但对代码可读性至关重要。下面规则描述了你应该在什么地方使用什么样的注释。但是要记住：尽管注释很重要，最好的代码却一定是可以自解释的。给类型和变量起一个合理的名字，要远远胜过用一个含糊的名字再用注释去解释。
+
+注释是写给读者的：下一个需要理解你代码的贡献者。慷慨些吧，下一个人很可能就是你自己。
+
 ## 注释风格
+**用`//`和`/* */`都行*，只要你自己保持一致。**
+
+用`//`和`/* */`都行，但`//`更常用；你自己如何使用注释和注释风格要统一。
+
 ## 文件注释
+**文件开头应为版权许可证后面跟着本文件内容描述。**
+
+### 法律声明和作者信息
+每一个文件都应该包含版权许可证。为你的项目选择一个合适的许可证（如，Apache 2.0，BSD，LGPL，GPL）。
+
+如果你对一个有作者信息的文件做了重大的改动，考虑删除作者信息行。
+> Why?
+
+### 文件内容
+每一个文件头部都要有一段描述其内容的注释。
+
+通常.h文件应该描述它声明的类，以及类作用和使用方法的简要说明。.cc文件应该包含实现细节或算法技巧描述等更多信息。如果你认为实现细节或算法讨论会对.h读者有用，就把它们放在.h文件中，只是别忘了在.cc文件中要提醒一下它们在.h文件。
+
+不要在.h和.cc文件之间复制注释。复制注释就失去注释的真正意义了。
+
 ## 类注释
+**每一个类定义都要附带一个注释来描述其功能和用法。**
+```c++
+// GargantuanTable内容的迭代器。使用示例：
+//    GargantuanTableIterator* iter = table->NewIterator();
+//    for (iter->Seek("foo"); !iter->done(); iter->Next()) {
+//      process(iter->key(), iter->value());
+//    }
+//    delete iter;
+class GargantuanTableIterator {
+  ...
+};
+```
+如果文件头部已经有了类的描述，直接来一句“完整描述见文件头”也没问题，但一定要确保有此类注释。
+
+如果有同步相关的假设，就要写下来。一个类对象是否可以被多线程访问，多线程下规则和常量的使用在文档化时要格外注意。
+
 ## 函数注释
+**函数需要声明注释；函数定义处的注释描述操作。**
+
+### 函数声明
+每个函数的前面都要有注释来说明其功能和用法。这些注释应该是描述性的（"Opens the file"）而不是命令式的（"Open the file"）；注释是描述函数用的，而不是告诉函数干什么的。通常，这些注释都不会描述函数如何执行任务，这应该是函数定义处的注释要做的事。
+
+函数声明注释中要提及的内容：
+- 输入输出。
+- 对于类成员函数：对象是否会在调用它之外记住引用参数，它是否会释放这些引用参数。
+- 如果函数分配了内存，调用者必须负责释放
+- 参数可否为空指针
+- 使用时有没有隐含的性能开销
+- 是否可以重入。其同步假设是什么？
+
+下面是一个例子：
+```c++
+// 返回这个表的一个迭代器。使用完后需要用户来删除这个迭代器。
+// 迭代器指向的GargantuanTable对象被删除后就不能再使用这个迭代器了。
+//
+// 此迭代器初始指向表头
+//
+// 这个方法等价于：
+//    Iterator* iter = table->NewIterator();
+//    iter->Seek("");
+//    return iter;
+// 如果你拿到这个迭代器会立刻查找另一个位置，用NewIterator()会更快，
+// 并可以避免额外的查找操作。
+Iterator* GetIterator() const;
+```
+然而，没有必要罗里罗嗦地去做些显而易见的说明。注意下面的例子就没有必要说“否则返回`false`”，因为这个已经隐含了。
+```c++
+// 如果表满了就返回true
+bool IsTableFull();
+```
+当注释构造函数和析构函数时，要清楚读者是明白构造函数和析构函数的，所以类似“销毁此对象”这种注释是没有用的。需要说明是构造函数用参数来干什么（如，是否会持有指针），以及析构函数做了什么样的清理工作。析构函数通常都不需要头文件注释。
+
+### 函数定义
+函数中使用的任何技巧都应该在注释中说明。如，在一个函数定义注释中，你可能会描述你使用的编码技巧，给出大体的实现步骤，以及你为什么要这样而不是那样实现此函数。你也会提及为什么前半段代码需要锁，而后半段不需要。
+
+
+注意不要只是简单重复头文件或其它什么地方的声明注释。简要概括一下函数是可以的，但着重是要注释如何实现。
+
 ## 变量注释
+**通常变量名应该足以说明变量的用途。在一些特定情况下，才需要多一点注释。**
+
+### 类数据成员
+每一个类数据成员（又称实例变量或成员变量）都要注释其用途。变量是否可以持有特定含义的哨兵值，如空指针或`-1`，也要说明。举个例子：
+```c++
+private:
+ // 跟踪表的项数。用来保证不越界。
+ // -1 表示我们还不知道表的项数。
+ int num_total_entries_;
+```
+### 全局变量
+和数据成员一样，全局变量也要用注释来说明其含义和用法。如：
+```c++
+// 本次回归测试中总共跑的测试用例数
+const int kNumTestCases = 6;
+```
+
 ## 实现注释
+**在你的实现中，应该注释技巧、不明显的、有趣的或重要的部分。**
+
+### 类函数成员
+技巧和复杂代码块前需要注释。如：
+```c++
+// 将结果除2，注意x保存进位
+for (int i = 0; i < result->size(); i++) {
+  x = (x << 8) + (*result)[i];
+  (*result)[i] = x >> 1;
+  x &= 1;
+}
+```
+### 行注释
+不明确的行尾部也要添加注释。这些注释和代码之间要有2个空格。如：
+```c++
+// If we have enough memory, mmap the data portion too.
+mmap_budget = max<int64>(0, mmap_budget - index_->length());
+if (mmap_budget >= data_size_ && !MmapData(mmap_chunk_bytes, mlock))
+  return;  // Error already logged.
+```
+注意上面既有表述代码作用的注释，也有注释提醒函数返回时已经记录了日志。
+
+如果在连续的行上都有注释，将它们对齐更可读：
+```c++
+DoSomething();                  // Comment here so the comments line up.
+DoSomethingElseThatIsLonger();  // Comment here so there are two spaces between
+                                // the code and the comment.
+{ // One space before comment when opening a new scope is allowed,
+  // thus the comment lines up with the following comments and code.
+  DoSomethingElse();  // Two spaces before line comments normally.
+}
+DoSomething(); /* For trailing block comments, one space is fine. */
+```
+
+### nullptr/NULL, true/false, 1, 2, 3...
+当传给函数一个空指针，布尔值，或一个字面数值时，应该考虑注释一下它们是什么意思，或用常量使你的代码可以自说明。如，对比下面两段代码：
+```c++
+bool success = CalculateSomething(interesting_value,
+                                  10,
+                                  false,
+                                  NULL);  // What are these arguments??
+```
+和
+```c++
+bool success = CalculateSomething(interesting_value,
+                                  10,     // Default base value.
+                                  false,  // Not the first time we're calling this.
+                                  NULL);  // No callback.
+```
+抑或使用可以自解释的常量也行:
+```c++
+const int kDefaultBaseValue = 10;
+const bool kFirstTimeCalling = false;
+Callback *null_callback = NULL;
+bool success = CalculateSomething(interesting_value,
+                                  kDefaultBaseValue,
+                                  kFirstTimeCalling,
+                                  null_callback);
+```
+### 不允许
+注意永远都不要对代码进行解释。假设读代码的人即便不知道你要做什么，他的C++水平也要比你高：
+```c++
+// Now go through the b array and make sure that if i occurs,
+// the next element is i+1.
+...        // Geez.  What a useless comment.
+```
+
 ## 标点，拼写和语法
+**要在标点、拼写和语法上心思；写得好的注释更易读。**
+
+注释应该和叙事文本一样易读，要有正确的大小写和标点符号。通常完整的句子要比片段更易读。短注释，如行尾注释，有时可以不那么正规，但你自己也要保持一致的风格。
+
+虽然让代码评审者指出你应该用分号时使用了逗号很让人不爽，但让源代码保持一个高层次的清晰性和可读性是非常重要的。合理的标点、拼写和语法对此会有所帮助。
+
 ## TODO注释
-## 不建议注释
+**对临时代码、短期解决方案以及可用但不够完美的代码使用`TODO`注释。**
+
+`TODO`应该包含全大写的字符串`TODO`，后面跟着可以提供这个问题来龙去脉的人的大名、邮箱或其它标识。后面再一个可选的冒号。这么做的主要目的是为了有一个一致的`TODO`格式，可以查找能为该请求提供更多细节的人。`TODO`不是用来注释某人以后会修正这个问题的。所以，当添加一条`TODO`时，总是应该写上你自己的名字。
+```c++
+// TODO(kl@gmail.com): Use a "*" here for concatenation operator.
+// TODO(Zeke) change this to use relations.
+```
+当你的`TODO`是类似“未来会如何如何”这种形式时，要确保包含确切的日期（“2005年11月修正”）或特定事件（“当所有客户都能处理XML文件时，就移除所有这些代码”）。
+
+## 弃用声明注释
+**对弃用的接口使用`DEPRECATED`注释进行说明。**
+
+你可以用包含全大写的单词`DEPRECATED`的注释来标记一个已经弃用的接口。这个注释或者放在接口的声明之前或者放在同一行。
+
+在单词`DEPRECATED`后面的括号里写上你的大名，邮箱，或其它身份标识。
+
+一个弃用注释必须包含简单清楚的用法说明，来帮助人们修改他们的调用点。C++中，你可以把弃用函数声明成一个内联函数，并在其中调用新的接口。
+
+把一个接口标记成`DEPRECATED`并不能自动修改调用点。如果你真的需要调用者停止使用弃用的设施，你应该自己去修改调用点或纠集一帮人来帮你干这个事。
+
+新代码不应该调用弃用的接口，而要使用新接口。如果你看不懂用法说明，就找创建这个弃用的人，让他们教你使用新接口。
 
 # 格式
 ## 行长度
