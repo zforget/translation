@@ -1799,16 +1799,296 @@ if (condition) {
 ```
 
 ## 循环和Switch语句
+**`switch`语句可以使用大括号分块。要注释`case`之间重要的失败。空循环体应该用`{}`或`continue`。**
+
+`switch`语句中的`case`块可以使用也可以不使用花括号，这取决于你的喜好。如果要使用花括号，需要像下面的示例那样放置。
+
+如果不是以枚举值为条件，`switch`语句应该有一个`default`匹配（如果使用枚举值，对没有处理的值编译器会有警告）。如果`default`匹配永远都不应该发生，简单使用一个`assert`即可：
+```c++
+switch (var) {
+  case 0: {  // 2个空格缩进
+    ...      // 4个空格缩进
+    break;
+  }
+  case 1: {
+    ...
+    break;
+  }
+  default: {
+    assert(false);
+  }
+}
+```
+空循环体应该用`{}`或`continue`，而不能只一个单独的分号。
+```c++
+while (condition) {
+  // 重复测试直到返回fasle。
+}
+for (int i = 0; i < kSomeNumber; ++i) {}  // 好 - 空循环体。
+while (condition) continue;  // 好 - continue表明无逻辑。
+```
+```c++
+while (condition);  // 不好 - 看起来像do/while循环的一部分。
+```
 ## 指针和引用表达式
+**点和箭头周围都不要有空格。指针操作符后面也不要有空格。**
+
+下面都是正确格式的指针和引用示例：
+```c++
+x = *p;
+p = &x;
+x = r.y;
+x = r->y;
+```
+注意：
+- 访问成员时的点号和箭头周围都没有空格。
+- 指针操作符`*`或`&`后面没有空格。
+
+当声明指针变量或参数时，你让星号靠近类型或靠近变量名都可以：
+```c++
+// 下面这样可以，星号前面加空格。
+char *c;
+const string &str;
+
+// 下面这样也可，星号后面加空格。
+char* c;    // 但是要记住多个变量的时候："char* c, *d, *e, ...;"!
+const string& str;
+```
+```c++
+char * c;  // 不好 - * 前后都有空格
+const string & str;  // 不好 - &前后都有空格
+```
+在一个文件中使用的形式要一致，所以修改文件时，要使用文件中已用的风格。
+
 ## 布尔表达式
+**当你的布尔表达式超过[标准行长度](#行长度)时，如何换行要保持一致。**
+ 
+下面的例子中，逻辑与操作符总是在行尾：
+```c++
+if (this_one_thing > this_other_thing &&
+    a_third_thing == a_fourth_thing &&
+    yet_another && last_one) {
+  ...
+}
+```
+注意在这个例子中，两个逻辑与操作符`&&`都在行尾。这在Google的代码是很常用，尽管把操作符放在行首的断行方式也是允许的。放心大胆地合理使用小括号，因为如果使用得当它们会极大增加可读性。同时也要注意，总是使用符号操作符，如`&&`和`~`，而不要使用文字操作符，如`and`和`cmpl`。
+
 ## 返回值
+**不要徒劳地用小括号包围起`return`表达式。**
+
+只有当你在`x = expr`中也要使用括号时，才需要在`return expr`是使用小括号。
+```c++
+return result;                  // 简单情况不用括号。
+return (some_long_condition &&  // 括号使用正确，增加了复杂表达式的可读性
+        another_condition);  
+```
+```c++
+return (value);                // 不好！ 不是var = (value)的形式；
+return(result);                // 不好！ return不是函数！
+```
+
 ## 变量和数组初始化
+**用`=`，`()`或`{}`均可。**
+
+你可以在`=`，`()`和`{}`之间选择，下面都是正确的：
+```c++
+int x = 3;
+int x(3);
+int x{3};
+string name = "Some Name";
+string name("Some Name");
+string name{"Some Name"};
+```
+在有接收`initializer_list`的构造函数的类型上使用`{}`要小必，`{}`语法会尽可能优先选择`initializer_list`构造函数。要使用其它构造函数，应使用`()`。
+```c++
+vector<int> v(100, 1);  // A vector of 100 1s.
+vector<int> v{100, 1};  // A vector of 100, 1.
+```
+大括号形式也可以阻止整数类型窄化转型(narrowing conversion)，这可以防止一些编程错误。
+```c++
+int pi(3.14);  // OK -- pi == 3.
+int pi{3.14};  // 编译器错误： 窄化转型
+```
+
 ## 预处理指令
+**井号开头的预处理指令应该在行首。**
+
+即使预处理指令在缩进的代码段中，也要从行首开始。
+```c++
+// 好 - 指令在行首
+  if (lopsided_score) {
+#if DISASTER_PENDING      // 正确 -- 从行首开始
+    DropEverything();
+# if NOTIFY               // 可以但不要求#后有空格
+    NotifyClient();
+# endif
+#endif
+    BackToNormal();
+  }
+```
+```c++
+// 不好 - 缩进指令
+  if (lopsided_score) {
+    #if DISASTER_PENDING  // 错误！ “#if”应该在行首
+    DropEverything();
+    #endif                // 错误！不要缩进“#endif”
+    BackToNormal();
+  }
+```
+
 ## 类格式
+**代码段顺序为`public`，`protected`和`private`，各缩进一个空格。**
+
+类声明的基本形式（不包含注释，参见[类注释](#类注释)相关讨论）是：
+```c++
+class MyClass : public OtherClass {
+ public:      // 注意一个空格缩进！
+  MyClass();  // 普通的2空格缩进。
+  explicit MyClass(int var);
+  ~MyClass() {}
+
+  void SomeFunction();
+  void SomeFunctionThatDoesNothing() {
+  }
+
+  void set_some_var(int var) { some_var_ = var; }
+  int some_var() const { return some_var_; }
+
+ private:
+  bool SomeInternalFunction();
+
+  int some_var_;
+  int some_other_var_;
+  DISALLOW_COPY_AND_ASSIGN(MyClass);
+};
+```
+注意事项：
+- 任何基类名都应该和子类在同一行上，但受限于80列限制。
+- `public:`、`protected:`和`private:`关键字应缩进一个空格。
+- 上面的关键字，除了第一个出现的，都应该前面加一空行。这条规则在较小的类中是可选的。
+- 上面的关键字后面不要留空行。
+- 先是`public`段，接着是`protected`段，最后是`private`段。
+- 每一段内部的声明顺序参见[声明顺序](#声明顺序])一节。
+
 ## 构造函数初始化列表
+**构造函数初始化列表可以在同一行上，也可以分行，后面的行都缩进4个空格。**
+
+初始化列表有两种可接受的形式：
+```c++
+// 可以放在同一行上：
+MyClass::MyClass(int var) : some_var_(var), some_other_var_(var + 1) {}
+```
+或
+```c++
+// 需要多行，缩进4个空格，算上第一行的冒号
+MyClass::MyClass(int var)
+    : some_var_(var),             // 4空格缩进
+      some_other_var_(var + 1) {  // 和上一行对齐
+  ...
+  DoSomething();
+  ...
+}
+```
 ## 命名空间格式化
+**命名空间内容不缩进。**
+
+命名空间不增加缩进层次。如:
+```c++
+namespace {
+
+void foo() {  // 正确。命名空间里不需要额外的缩进。
+  ...
+}
+
+}  // namespace
+```
+命名空间不需要缩进：
+```c++
+namespace {
+
+  // 错误。不应该有缩进。
+  void foo() {
+    ...
+  }
+
+}  // namespace
+```
+当声明了嵌套命名空间时，每个一行：
+```c++
+namespace foo {
+namespace bar {
+```
 ## 水平空白
+**水平空白取决于位置。不要在行尾添加空白。**
+
+### 普通
+```c++
+void f(bool b) {  // 左大括号前面总需要空格。
+  ...
+int i = 0;  // 分号前面通常没有空格。
+int x[] = { 0 };  // 大括号初始化列表内部的空格是可选的。
+int x[] = {0};    // 但如果要用，就两边都用！
+// 继承和初始化列表中的冒号周围要有空格。
+class Foo : public Bar {
+ public:
+  // 对于内联函数实现，在大括号和实现代码之间加空格。
+  Foo(int b) : Bar(), baz_(b) {}  // 空的大括号内不需要空格。
+  void Reset() { baz_ = 0; }  // 用空格分隔大括号和实现代码。
+  ...
+```
+行尾添加空格和给其它编辑代码的人造成额外的负担，当他们合并时，会删除已存在的空白。所以，不要引入行尾空白。编辑时删除行尾的空白，或通过单独的清理操作删除（当然要在没有其它人正在使用此文件时）。
+### 循环和条件语句
+```c++
+if (b) {          // 条件和循环中关键字后面有空格。
+} else {          // else周围有空格
+}
+while (test) {}   // 小括号内通常没有空格。
+switch (i) {
+for (int i = 0; i < 5; ++i) {
+switch ( i ) {    // 循环和条件的小括号中可以有空格，但不常用，且要自己保持一致。
+if ( test ) {
+for ( int i = 0; i < 5; ++i ) {
+for ( ; i < 5 ; ++i) {  // for循环中，分号之后一定要有空格，前面也可以有
+  ...
+for (auto x : counts) {  // 基于范围的for循环冒号前后总需要空格
+  ...
+}
+switch (i) {
+  case 1:         // switch中case子句前的冒号不需要空格。
+    ...
+  case 2: break;  // 如果冒号后有代码，就需要加空格。
+```
+### 操作符
+```c++
+x = 0;              // 赋值操作符周围需要空格。
+x = -5;             // 一元操作符和其参数之间不需要空格。
+++x;
+if (x && !y)
+  ...
+v = w * x + y / z;  // 二元操作符周围通常都有空格，
+v = w*x + y/z;      // 但删除因子周围的空格也可以。
+v = w * (x + z);    // 小括号内不需要空格。
+```
+### 模板和类型转换
+```c++
+vector<string> x;           // 尖括号内部（<和>），<之前或>(之间不需要空格。
+y = static_cast<char*>(x);
+vector<char *> x;           // 类型和指针符号间可以有空格，但要保持一致。
+set<list<string>> x;        // C++11代码中允许。
+set<list<string> > x;       // C++03要求> >之间有一空格。
+set< list<string> > x;      // 你也可以在< <间使用空格来保护对称性。
+```
 ## 垂直空白
+**尽可能少用垂直空白。**
+
+这更像是原则面不是规则：不要随便使用空行。特别是在函数之间不要添加起过一两个空行，函数开始不要有空行，也不要以空行结束，并且在函数体中使用空行也要节制。
+
+基本原则是：一屏能显示的代码越多越好，这就越容易跟踪和理解程序的控制流。当然，过于密集和过于松散的代码可读性同样不好，这你要自己判断。但是，通常都是垂直空白越少越好。
+
+一些经验法则可以帮助确定何时空行是有用的：
+- 函数内头尾的空行对可读性几乎没有帮助。
+- `if-else`代码链中的空行有助于可读性。
+
 
 # 规则特例
 ## 现有的不合规范代码
