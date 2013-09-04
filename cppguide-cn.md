@@ -29,7 +29,8 @@ Google开发的开源工程均遵循本指南的要求。
 **所有的头文件都应该使用#define保护起来以阻止多次包含。符号名规则应该是`<项目>_<路径>_<文件>_H_`。**
 
 为了保证唯一性，它们应该基于在工程源代码树中的全路径。如，工程foo中的文件foo/src/bar/baz.h应该有以下的保护：
-```c
+
+```cpp
 #ifndef FOO_BAR_BAZ_H_
 #define FOO_BAR_BAZ_H_
 
@@ -105,7 +106,8 @@ C/C++函数的参数或是输入或是输出或两者皆是。输入参数通常
 **使用标准的头文件包含顺序增强可读性，并避免隐藏依赖：C库，C++库，其它库头文件，本项目库头文件。**
 
 所有本工程的头文件应该按源代码目录树结构排列，避免使用UNIX的特殊缩写 .（当前目录）或 ..（父目录）。比如，google-awesome-project/src/base/logging.h应该这样被包含：
-```c
+
+```cpp
 #include "base/logging.h"
 ```
 在dir/foo.cc或dir/foo_test.cc中，其主要目的是实现或测试dir2/foo2.h中的声明的东西, 你的包含次序应该是这样的：
@@ -123,7 +125,8 @@ dir/foo.cc和dir2/foo2.h通常在同一目录中（比如base/basictypes_test.cc
 在上面的每一块中，按字母顺序排列是个好主意。注意旧代码可以不符合这条规则，但应该在方便的时候修改它。
 
 比如，google-awesome-project/src/foo/internal/fooserver.cc中的包含次序应看起来像这样：
-```c
+
+```cpp
 #include "foo/public/fooserver.h"  // Preferred location.
 
 #include <sys/types.h>
@@ -160,7 +163,7 @@ dir/foo.cc和dir2/foo2.h通常在同一目录中（比如base/basictypes_test.cc
 #### 匿名空间
 - 匿名空间在.cc中是允许的，甚至是被鼓励的，以此可以避免命名冲突：
 
-```C++
+```cpp
 namespace {                           // 这个一个.cc文件中的代码
 
 // 命令空间的内容不缩进
@@ -177,7 +180,7 @@ bool AtEof() { return pos_ == kEOF; }  // Uses our namespace's EOF.
 具名空间应该像下面这样使用：
 - 使用命名空间把除头文件包含，gflags定义/声明以及类的前置声明以外的整个代码包装起来，以别于其它命令空间：
 
-```C++
+```cpp
 // In the .h file
 namespace mynamespace {
 
@@ -202,7 +205,8 @@ void MyClass::Foo() {
 }  // namespace mynamespace
 ```
 通常.cc文件会有更多复杂细节，包括引用其它命名空间中的类。
-```C++
+
+```cpp
 #include "a.h"
 
 DEFINE_bool(someflag, false, "dummy flag");
@@ -219,20 +223,20 @@ namespace b {
 - 不要在std空间中声明任何东西，甚至不要前置声明标准库的类。在std空间中声明东西会产生不确定的行为，比如不可移植。要声明标准库中的东西，包含相应的头文件就好了。
 - 不要使用using指令来引入一个命名空间中的所有名字。
 
-```C++
+```cpp
 // 禁止！！！ -- 这会污染命令空间
 using namespace foo;
 ```
 - 在.cc文件中的任何地方，.h文件中的函数、方法以及类中都可以使用using声明
 
-```C++
+```cpp
 // 在.cc文件这是允许的
 // .h文件中，必须是在函数、方法或类内部
 using ::foo::bar;
 ```
 -  在.cc文件任何地方，在包装整个.h文件的命名空间内的任何地方，以及在函数和方法中，都允许使用命名空间别名。
 
-```C++
+```cpp
 // .cc文件中为常用的起短名
 namespace fbz = ::foo::bar::baz;
 
@@ -256,7 +260,8 @@ inline void my_inline_function() {
 
 ### 定义：
 一个类中可以定义另一类; 这个嵌套类也被称为成员类。
-```C++
+
+```cpp
 class Foo {
 
  private:
@@ -296,28 +301,34 @@ class Foo {
 **尽量将函数变量放在一个较小的作用域内，并在声明时进行初始化。**
 
 C++允许你在函数的任何位置声明变量。我们鼓励你在尽可能小的作用域内声明，离第一次使用越进越好。这使得读者更容易看到变量的声明、定义以及初始值。特别提醒，应该初始化而非声明再赋值，如：
-```C++
+
+```cpp
 int i;
 i = f(); // 不好 -- 初始化和声明分开。
 ```
-```C++
+
+```cpp
 int j = g(); // 好 -- 声明时初始化。
 ```
-```C++
+
+```cpp
 vector<int> v;
 v.push_back(1);  // 应优先使用括号初始化。
 v.push_back(2);
 ```
-```C++
+
+```cpp
 vector<int> v = {1, 2};  // 好 -- 变量 v 声明时初始化。
 ```
 注意gcc正确实现了```for (int i = 0; i < 10; ++i)```(i的作用域仅为此for循环)，所以在同一作用域的其它for循环中可以重复使用i。将声明作用域限定于在while和if语句中也是正确的，如：
-```C++
+
+```cpp
 while (const char* p = strchr(str, '/')) str = p + 1;
 ```
 
 有一点需要注意：如果变量是一个对象，它的构造函数会在每一次进入作用域创建对象时被调用，它的析构函数也会在每次离开作用域时被调用。
-```C++
+
+```cpp
 // 无效率的实现：
 for (int i = 0; i < 1000000; ++i) {
   Foo f;  // Foo的构造函数和析构函数分别被调用了1000000次。
@@ -326,7 +337,8 @@ for (int i = 0; i < 1000000; ++i) {
 ```
 
 这时在循环之外定义循环中使用的变量要高效的多：
-```C++
+
+```cpp
 Foo f;  // Foo的构造函数和析构函数只分别被调用了1次。
 for (int i = 0; i < 1000000; ++i) {
   f.DoSomething(i);
@@ -427,7 +439,8 @@ for (int i = 0; i < 1000000; ++i) {
 如果你的类不需要拷贝构造函数和赋值操作符，就必须显式禁止它们。可以在class的private区为构造函数和赋值操作符添加假的声明，但不提供相关定义（这样所有使用它们的企图都会引发一个链接错误）。
 
 方便起见，一个DISALLOW_COPY_AND_ASSIGN宏可以这样使用:
-```C++
+
+```cpp
 // 一个禁止拷贝构造函数和赋值操作符的宏
 // 它应该被用在类的private声明区
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
@@ -435,7 +448,8 @@ for (int i = 0; i < 1000000; ++i) {
   void operator=(const TypeName&)
 ```
 然后，在类Foo中：
-```C++
+
+```cpp
 class Foo {
  public:
   Foo(int f);
@@ -623,7 +637,8 @@ cpplink.py是一个读取源代码并能指出许多风格错误的工具。它�
 
 ### 结论：
 函数的参数列表中，所有的引用参数都必须是`const`的：
-```C++
+
+```cpp
 void Foo(const string &in, string *out);
 ```
 
@@ -640,7 +655,8 @@ void Foo(const string &in, string *out);
 
 ### 定义：
 你可以写一个以`const string&`为参数的函数，然后再写一个以`const char *`为指针的。
-```C++
+
+```cpp
 class MyClass {
  public:
   void Analyze(const string &text);
@@ -672,7 +688,8 @@ class MyClass {
 一个特例是当这个函数是一个.cc文件中的静态函数（或在一个匿名命名空间中）时。这时没有上面的缺点，因为函数的使用被本地化了。
 
 另一个特例是缺省参数用以模拟可变参数列表。
-```C++
+
+```cpp
 // 使用缺省的空AlphaNum参数，最多可以支持4个参数
 string StrCat(const AlphaNum &a,
               const AlphaNum &b = gEmptyAlphaNum,
@@ -744,7 +761,8 @@ RTTI的标准替代品（下面会描述）需要修改或重新设计类的继�
 RTTI在一些单元测试中会很有用。例如，测试工厂类时需要校验新生成的对象是否是预期的类型，这时RTTI就很有用。在管理对象和其mock对象的关系时也很有用。
 
 当有多个抽象对象时，RTTI很有用。考虑下面代码：
-```C++
+
+```cpp
 bool Base::Equal(Base* other) = 0;
 bool Derived::Equal(Base* other) {
   Derived* that = dynamic_cast<Derived*>(other);
@@ -762,7 +780,8 @@ RTTI有合理的应用，但是容易滥用，所以使用时你必须要小心�
 如果程序逻辑确保了一个给定的基类实例实际上是一个特定子类的实例，这时可以使用`dynamic_cast`。通常这种情况可以使用`static_cast`代替。
 
 基于类型的决策树是你代码有问题的强有力的信号。
-```C++
+
+```cpp
 if (typeid(*data) == typeid(D1)) {
   ...
 } else if (typeid(*data) == typeid(D2)) {
@@ -817,14 +836,16 @@ C语言类型转换的问题是模棱两可，有时是值转换（conversion, �
 关于这个问题有一些争论，所以在此进一步解释一下。回想一下 **唯一性（Only One Way）**原则：我们希望确保使用同一类型的I/O的代码看起来都是一样的。因此，我们不想让用户来决定使用流还是`printf`+`read/write`等。相反，我们应该明确唯一一种方式。之所以日志例外，因为它是很特别的应用，并有一些历史原因。
 
 流的支持者们认为流是不二之选，但是理由实际上都不怎么清楚。流的每一个优点都有相应的劣势。最大的优势莫过于你无需关心要打印的对象类型，这的确是优势。但是也有不利的一面：你容易用错类型，并且编译器不会警告你。使用流，你很容易犯下面的错误而不自知：
-```C++
+
+```cpp
 cout << this;   // 打印地址
 cout << *this;  // 打印内容
 ```
 因为`<<`已被重载，所以编译器不会报错。就是因为这原因，我们才不鼓励重载。
 
 有人说`printf`风格丑陋难以阅读，便流也好不到哪里去。考虑下面两段代码，以两种风格实现相同功能。哪一个更清晰？
-```C++
+
+```cpp
 cerr << "Error connecting to '" << foo->bar()->hostname.first
      << ":" << foo->bar()->hostname.second << ": " << strerror(errno);
 
@@ -903,7 +924,8 @@ C++中整数类型的大小可能随编译器和体系结构不同而有所不�
 
 ### 关于无符号整数
 有些人，包括一些教科书作者，都推荐使用无符号类型来表示永远不可能为负的数，以图达到代码的自文档化。然而在C语言中，这种好处被可能引入的真实bug掩盖。考虑下面的代码：
-```C++
+
+```cpp
 for (unsigned int i = foo.Length()-1; i >= 0; --i) ...
 ```
 这段代码永远都不会结束！有时gcc会发现并提醒你，便是通常都不会。同样的bug，在比较有符号和无符号数时也会产生。基本上，是C语言的类型提升机制使无符号类型的行为不同于预期。
@@ -914,7 +936,7 @@ for (unsigned int i = foo.Length()-1; i >= 0; --i) ...
 **代码应该是64位和32位都支持的。要时刻考虑到打印，比较和结构体对齐等问题。**
 - `printf()`的有些指示符不能在32位和64位之间很好的移植。C99定义了一些可移植的指示符。 不幸的是MSVC7.1支持得不全，且标准本身也有所遗漏，所以我们有时不得不定义自己的丑陋版本（按标准头文件inttypes.h的风格）。
 
- ```C++
+ ```cpp
  // size_t的printf的宏，按inttypes.h风格
  #ifdef _LP64
  #define __PRIS_PREFIX "z"
@@ -945,7 +967,7 @@ for (unsigned int i = foo.Length()-1; i >= 0; --i) ...
 - 你要小心结构体对齐，特别是对那些需要保存在磁盘上的结构体。在64位系统上，任何含有`int64_t`或`uint64_t`数据成员的类或结构体都会以8字节对齐。如果你需要32位代码和64位代码在磁盘上共享它，就必须要确保在两种架构上以一致的方式打包。大部分编译器都提供了改变结构体对齐方式的方法。gcc可以使用`__attribute__((packed))`，MSVC则提供了`#pragma pack()`和`__declspec(align())`。
 - 创建64位常量时要使用`LL`或`ULL`后缀。如：
 
- ```C++
+ ```cpp
  int64_t my_value = 0x123456789LL;
  uint64_t my_mask = 3ULL << 48;
  ```
@@ -980,14 +1002,17 @@ for (unsigned int i = foo.Length()-1; i >= 0; --i) ...
 **相对于`sizeof(类型)`，优选`sizeof(变量名)`。**
 
 当你想要一个特定变量的大小时，使用`sizeof(变量名)`。`sizeof(变量名)`会随变量类型的变化更新。在与特定变量无关时你才可以使用`sizeof(类型)`，如在管理外部或内部数据格式的代码中，就不方便使用相应C++类型的变量。
-```C++
+
+```cpp
 Struct data;
 memset(&data, 0, sizeof(data));   // 好！
 ```
-```C++
+
+```cpp
 memset(&data, 0, sizeof(Struct)); // 不好！
 ```
-```C++
+
+```cpp
 if (raw_size < sizeof(int)) { // 可以
   LOG(ERROR) << "compressed record not big enough for count: " << raw_size;
   return false;
@@ -999,31 +1024,36 @@ if (raw_size < sizeof(int)) { // 可以
 
 ### 定义：
 在C++11中，一个auto类型的变量的实际类型会和初始化它的表达式匹配。你可以在以拷贝方式初始化变量时，或绑定引用时使用`auto`。
-```C++
+
+```cpp
 vector<string> v;
 ...
 auto s1 = v[0];         // 生成一个v[0]的拷贝
 const auto& s2 = v[0];  // s2是v[0]的引用
 ```
 ### 优点：
-C++的类型名有时非常长且笨重，特别是涉及模板和命名空间时更是如此。在下面这样的语句中
-```C++
+C++的类型名有时非常长且笨重，特别是涉及模板和命名空间时更是如此。在下面这样的语句中：
+
+```cpp
 sparse_hash_map<string, int>::iterator iter = m.find(val);
 ```
 返回类型难以阅读，并掩盖了代码的主要目的。改成下面这样就好读多了：
-```C++
+
+```cpp
 auto iter = m.find(val);
 ```
 
 没有`auto`，在有些表达式中我们要写两次类型名，而这对于代码阅读者没有任何价值，如
-```C++
+
+```cpp
 diagnostics::ErrorStatus* status = new　diagnostics::ErrorStatus("xyz");
 ```
 `auto`使得合理使用中间变量变得更容易，减少了显示写出它们类型的麻烦。
 
 ### 缺点：
 有时使用显式的类型使代码更清晰，特别是当一个变量初始化时要依赖远处声明的东西时。像在下面的表达式中：
-```C++
+
+```cpp
 auto i = x.Lookup(key);
 ```
 如果`x`是在几百行代码之前声明的，`i`的类型就不明显了。
@@ -1031,7 +1061,8 @@ auto i = x.Lookup(key);
 程序员需要理解`auto`和`const auto&`的不同，否则就会在不必要的地方发生拷贝。
 
 `auto`和C++11中的大括号初始化一起用可能会引起困惑。下面的声明是不同的：
-```C++
+
+```cpp
 auto x(3);  // Note: parentheses.
 auto y{3};  // Note: curly braces.
 ```
@@ -1048,12 +1079,14 @@ auto y{3};  // Note: curly braces.
 **你可以使用大括号初始化。**
 
 在C++03中，聚合类型（没有构造函数的数组和结构体）可以使用大括号初始化。
-```C++
+
+```cpp
 struct Point { int x; int y; };
 Point p = {1, 2};
 ```
 C++11把这种语法扩展到了所有数据类型，这种形式被称为brace-init-list。下面是一些使用示例。
-```C++
+
+```cpp
 // 包含几个元素的Vector
 vector<string> v{"foo", "bar"};
 
@@ -1077,7 +1110,8 @@ void test_function2(vector<int> v) {}
 test_function2({1, 2, 3});
 ```
 自定义数据类型也可以定义使用`initializer_list`的构造函数，它会自动从braced-init-list创建：
-```C++
+
+```cpp
 class MyType {
  public:
   // initializer_list是底层初始化列表的引用，所以可以传值
@@ -1088,7 +1122,8 @@ class MyType {
 MyType m{2, 3, 5, 7};
 ```
 最后，大括号初始化也可以在没有`initializer_list`构造函数时调用普通构造函数。
-```C++
+
+```cpp
 double d{1.23};
 // 只要MyOtherTypeinitializer_list没有构造函数，就调用普通构造函数。
 class MyOtherType {
@@ -1101,10 +1136,12 @@ MyOtherType m = {1, "b"};
 MyOtherType m{"b"};
 ```
 不要把braced-init-list赋值给一个`auto`局部变量。在列表中只有一个值的情况下，会引起误解。
-```C++
+
+```cpp
 auto d = {1.23};        // d的类型是 initializer_list<double>。
 ```
-```C++
+
+```cpp
 auto d = double{1.23};  // 好 -- d的类型是double，而不是 initializer_list。
 ```
 ## Boost
@@ -1197,13 +1234,15 @@ C++11实际上比之前的标准要复杂得多（1300页对800页），并且�
 **函数名，变量名和文件名应该是描述性的，并避免缩写。**
 
 尽量给一个名字合理的描述性。不要操心省一点行空间的事，代码可以让新的阅读者快速理解重要的多得多。不要用缩写，它会使你项目外的读者迷惑或不熟悉，也不要通过删除单词中的几个字母来缩写。
-```c++
+
+```cpp
 // 符合规定的命名
 int price_count_reader;    // 没有缩写
 int num_errors;            // "num"是一个广为人知的用法
 int num_dns_connections;   // 大多数人知道"DNS"是什么意思
 ```
-```c++
+
+```cpp
 // 不符合规定的命名
 int n;                     // 没有意义
 int nerr;                  // 不清楚的缩写
@@ -1217,7 +1256,8 @@ int cstmr_id;              // 删除了中间的字母
 **文件名应该都是小写字母。可以包含下划线（_）和破折号（-），用什么要遵循你项目的约定，如果没有标准，就用“_”。**
 
 下面是可接受的文件名：
-```c++
+
+```cpp
 my_useful_class.cc
 my-useful-class.cc
 myusefulclass.cc
@@ -1230,7 +1270,8 @@ C++源文件后缀应是.cc，头文件后缀应为.h。
 通常应该让你的文件名更明确，如http_server_logs.h就比logs.h好。一个非常常规的用法就是用一对文件，比如名为foo_bar.h和foo_bar.cc，来定义一个名为FooBar的类。
 
 内联函数必须要.h文件中。如果你的内联函数很短，就应该直接写在.h文件中；如果很长，就应该写在另一个以-inl.h为后缀的文件中。对于有大量内联代码的类，可能有三个与之对应的文件：
-```c++
+
+```cpp
 url_table.h      // 类声明
 url_table.cc     // 类定义
 url_table-inl.h  // 大的内联函数
@@ -1241,7 +1282,8 @@ url_table-inl.h  // 大的内联函数
 **类型名应该以大写字母开头，并且中间的每个单词都以大写字母开头，不使用下划线：`MyExcitingClass`，`MyExcitingEnum`。**
 
 所有的类型名（类，结构体，`typedef`，枚举等）都要使用相同的约定。类型名应该以大写字母开头，并且中间的每个单词都以大写字母开头。不需要使用下划线。如：
-```c++
+
+```cpp
 // 类和结构体
 class UrlTable { ...
 class UrlTableTester { ...
@@ -1259,7 +1301,8 @@ enum UrlTableErrors { ...
 
 ### 普通变量名
 如：
-```c++
+
+```cpp
 string table_name;  // 好 - 使用下划线
 string tablename;   // 好 - 所有的字母都是小写
 
@@ -1267,13 +1310,15 @@ string tableName;   // 不好 - 大小写混合
 ```
 ### 类数据成员
 类数据成员（也叫实例变量或成员变量）和普通变量一样，是小写字母加可选的下划线，但是最后要以一个下划线结尾。
-```c++
+
+```cpp
 string table_name_;  // 好 - 下划线结尾
 string tablename_;   // 好
 ```
 ### 结构体变量
 结构体的数据成员应该和普通变量一样命名，结尾不需要和类成员一样的下划线。
-```c++
+
+```cpp
 struct UrlTableProperties {
   string name;
   int num_entries;
@@ -1288,7 +1333,8 @@ struct UrlTableProperties {
 **用`k`跟着大小写混合的形式命名常量：`kDaysInAWeek`。**
 
 对所有编译期的常量，不管是局部的，全局的还是一个类中的，都遵循和其它变量稍微不同的命名约定。使用`k`跟着首字母大写的单词来命名。
-```c++
+
+```cpp
 const int kDaysInAWeek = 7;
 ```
 
@@ -1299,14 +1345,16 @@ const int kDaysInAWeek = 7;
 函数名应该以大写字母开头，中间的每一个单词都首字母大写。不需要下划线。
 
 如果函数在碰到某些错误时会崩溃，你应该在函数名后面加上`OrDie`。这些函数都是生产环境中使用的代码，且在常规操作时有可能会失败。
-```c++
+
+```cpp
 AddTableEntry()
 DeleteUrl()
 OpenFileOrDie()
 ```
 ### 存取函数
 **存取函数（get/set函数）应该和它们操作的变量名匹配。下面摘录了一个类，这个类有一个名为`num_entries_`的成员变量。**
-```c++
+
+```cpp
 class MyClass {
  public:
   ...
@@ -1322,13 +1370,14 @@ class MyClass {
 ## 命名空间命名
 **命名空间名字都是小写的，基于工程名和目录结构：`google_awsome_project`。**
 
-关于命名空间的讨论详见[命名空间](##命名空间)。
+关于命名空间的讨论详见[命名空间](#命名空间)。
 
 ## 枚举命名
 **枚举应该和常量或宏一样命名：或`kEnumName`或`ENUM_NAME`。**
 
 每个枚举值应该优先以常量的形式命名。不过按宏方式命名也是可以接受的。枚举名，`UrlTableErrors`（以及`AlternateUrlTableErrors`），是一个类型，因此使用大小写混合模式。
-```c++
+
+```cpp
 enum UrlTableErrors {
   kOK = 0,
   kErrorOutOfMemory,
@@ -1346,7 +1395,8 @@ enum AlternateUrlTableErrors {
 **通常都不需要定义宏，不是吗？如果你定义了宏，看起来应该是这样的：`MY_MACRO_THAT_SCARES_SMALL_CHILDREN`。**
 
 请查看对[宏](#宏)的描述：通常都不应该使用宏。但是如果确实需要宏，应该以全大写字母加下划线来命名。
-```c++
+
+```cpp
 #define ROUND(x) ...
 #define PI_ROUNDED 3.0
 ```
@@ -1386,7 +1436,8 @@ enum AlternateUrlTableErrors {
 
 ## 类注释
 **每一个类定义都要附带一个注释来描述其功能和用法。**
-```c++
+
+```cpp
 // GargantuanTable内容的迭代器。使用示例：
 //    GargantuanTableIterator* iter = table->NewIterator();
 //    for (iter->Seek("foo"); !iter->done(); iter->Next()) {
@@ -1416,7 +1467,8 @@ class GargantuanTableIterator {
 - 是否可以重入。其同步假设是什么？
 
 下面是一个例子：
-```c++
+
+```cpp
 // 返回这个表的一个迭代器。使用完后需要用户来删除这个迭代器。
 // 迭代器指向的GargantuanTable对象被删除后就不能再使用这个迭代器了。
 //
@@ -1431,7 +1483,8 @@ class GargantuanTableIterator {
 Iterator* GetIterator() const;
 ```
 然而，没有必要罗里罗嗦地去做些显而易见的说明。注意下面的例子就没有必要说“否则返回`false`”，因为这个已经隐含了。
-```c++
+
+```cpp
 // 如果表满了就返回true
 bool IsTableFull();
 ```
@@ -1448,7 +1501,8 @@ bool IsTableFull();
 
 ### 类数据成员
 每一个类数据成员（又称实例变量或成员变量）都要注释其用途。变量是否可以持有特定含义的哨兵值，如空指针或`-1`，也要说明。举个例子：
-```c++
+
+```cpp
 private:
  // 跟踪表的项数。用来保证不越界。
  // -1 表示我们还不知道表的项数。
@@ -1456,7 +1510,8 @@ private:
 ```
 ### 全局变量
 和数据成员一样，全局变量也要用注释来说明其含义和用法。如：
-```c++
+
+```cpp
 // 本次回归测试中总共跑的测试用例数
 const int kNumTestCases = 6;
 ```
@@ -1466,7 +1521,8 @@ const int kNumTestCases = 6;
 
 ### 类函数成员
 技巧和复杂代码块前需要注释。如：
-```c++
+
+```cpp
 // 将结果除2，注意x保存进位
 for (int i = 0; i < result->size(); i++) {
   x = (x << 8) + (*result)[i];
@@ -1476,7 +1532,8 @@ for (int i = 0; i < result->size(); i++) {
 ```
 ### 行注释
 不明确的行尾部也要添加注释。这些注释和代码之间要有2个空格。如：
-```c++
+
+```cpp
 // If we have enough memory, mmap the data portion too.
 mmap_budget = max<int64>(0, mmap_budget - index_->length());
 if (mmap_budget >= data_size_ && !MmapData(mmap_chunk_bytes, mlock))
@@ -1485,7 +1542,8 @@ if (mmap_budget >= data_size_ && !MmapData(mmap_chunk_bytes, mlock))
 注意上面既有表述代码作用的注释，也有注释提醒函数返回时已经记录了日志。
 
 如果在连续的行上都有注释，将它们对齐更可读：
-```c++
+
+```cpp
 DoSomething();                  // Comment here so the comments line up.
 DoSomethingElseThatIsLonger();  // Comment here so there are two spaces between
                                 // the code and the comment.
@@ -1498,21 +1556,24 @@ DoSomething(); /* For trailing block comments, one space is fine. */
 
 ### nullptr/NULL, true/false, 1, 2, 3...
 当传给函数一个空指针，布尔值，或一个字面数值时，应该考虑注释一下它们是什么意思，或用常量使你的代码可以自说明。如，对比下面两段代码：
-```c++
+
+```cpp
 bool success = CalculateSomething(interesting_value,
                                   10,
                                   false,
                                   NULL);  // What are these arguments??
 ```
 和
-```c++
+
+```cpp
 bool success = CalculateSomething(interesting_value,
                                   10,     // Default base value.
                                   false,  // Not the first time we're calling this.
                                   NULL);  // No callback.
 ```
 抑或使用可以自解释的常量也行:
-```c++
+
+```cpp
 const int kDefaultBaseValue = 10;
 const bool kFirstTimeCalling = false;
 Callback *null_callback = NULL;
@@ -1523,7 +1584,8 @@ bool success = CalculateSomething(interesting_value,
 ```
 ### 不允许
 注意永远都不要对代码进行解释。假设读代码的人即便不知道你要做什么，他的C++水平也要比你高：
-```c++
+
+```cpp
 // Now go through the b array and make sure that if i occurs,
 // the next element is i+1.
 ...        // Geez.  What a useless comment.
@@ -1540,7 +1602,8 @@ bool success = CalculateSomething(interesting_value,
 **对临时代码、短期解决方案以及可用但不够完美的代码使用`TODO`注释。**
 
 `TODO`应该包含全大写的字符串`TODO`，后面跟着可以提供这个问题来龙去脉的人的大名、邮箱或其它标识。后面再一个可选的冒号。这么做的主要目的是为了有一个一致的`TODO`格式，可以查找能为该请求提供更多细节的人。`TODO`不是用来注释某人以后会修正这个问题的。所以，当添加一条`TODO`时，总是应该写上你自己的名字。
-```c++
+
+```cpp
 // TODO(kl@gmail.com): Use a "*" here for concatenation operator.
 // TODO(Zeke) change this to use relations.
 ```
@@ -1595,14 +1658,16 @@ bool success = CalculateSomething(interesting_value,
 **返回值类型和函数名放在同一行上，参数也尽量放在同一行上。**
 
 函数看上去应该这样：
-```c++
+
+```cpp
 ReturnType ClassName::FunctionName(Type par_name1, Type par_name2) {
   DoSomething();
   ...
 }
 ```
 如果你的一行太长放不下所有参数：
-```c++
+
+```cpp
 ReturnType ClassName::ReallyLongFunctionName(Type par_name1, Type par_name2,
                                              Type par_name3) {
   DoSomething();
@@ -1610,7 +1675,8 @@ ReturnType ClassName::ReallyLongFunctionName(Type par_name1, Type par_name2,
 }
 ```
 抑或是连一个参数都放不下：
-```c++
+
+```cpp
 ReturnType LongClassName::ReallyReallyReallyLongFunctionName(
     Type par_name1,  // 4个空格缩进
     Type par_name2,
@@ -1633,7 +1699,8 @@ ReturnType LongClassName::ReallyReallyReallyLongFunctionName(
 - 换行的参数使用4字节缩进。
 
 如果有参数没有使用，在函数定义时把这个变量名注释出来：
-```c++
+
+```cpp
 // 接口中总是使用具名参数
 class Shape {
  public:
@@ -1649,7 +1716,8 @@ class Circle : public Shape {
 // 定义时注释未使用的参数名
 void Circle::Rotate(double /*radians*/) {}
 ```
-```c++
+
+```cpp
 // 不好 - 如果有人以后想实现这个函数，这个变量的含义就不清楚
 void Circle::Rotate(double) {}
 ```
@@ -1657,23 +1725,27 @@ void Circle::Rotate(double) {}
 **尽量放在同一行，否则换行圆括号中的实参。**
 
 函数调用形式如下：
-```c++
+
+```cpp
 bool retval = DoSomething(argument1, argument2, argument3);
 ```
 如果参数不能放在同一行上，就应该断到多行，后面的每一行都和第一个参数对齐。不要在左括号后和右括号前不要有空格。
-```c++
+
+```cpp
 bool retval = DoSomething(averyveryveryverylongargument1,
                           argument2, argument3);
 ```
 如果函数有太多参数，考虑每行一个来使代码更易读：
-```c++
+
+```cpp
 bool retval = DoSomething(argument1,
                           argument2,
                           argument3,
                           argument4);
 ```
 参数也可以都放在函数名下面的行上，一行一个：
-```c++
+
+```cpp
 if (...) {
   ...
   ...
@@ -1691,7 +1763,8 @@ if (...) {
 **尽量在一行上，否则在左大括号处换行。**
 
 尽量把所有的东西都放到一行上。如果不能放到一行上，左大括号应该是其所在行的最后一个字符，且右大括号应该是其所在行的第一个字符。
-```c++
+
+```cpp
 // 单行大括号列表示例。
 return {foo, bar};
 functioncall({foo, bar});
@@ -1728,7 +1801,8 @@ function(
 一个基本的条件语句有两种可接受的形式。一种在小括号和条件之间有空格，另一种没有。
 
 最常用的形式是没有空格的。另一种也可以，但是要保持一致。如果你在修改一个文件，使用已有的格式。对于新代码，使用同一目录或同一工程中的形式。如果不确定并且没有个人倾向，就不要用空格。
-```c++
+
+```cpp
 if (condition) {  // 小括号里没有空格
   ...  // 2个空格缩进
 } else if (...) {  // 和右大括号在同一行的else语句。
@@ -1738,7 +1812,8 @@ if (condition) {  // 小括号里没有空格
 }
 ```
 如果你选择在小括号中添加空格：
-```c++
+
+```cpp
 if ( condition ) {  // 小括号中有空格 - 少用
   ...  // 2个空格缩进
 } else {  // 和右大括号在同一行的else语句。
@@ -1746,27 +1821,32 @@ if ( condition ) {  // 小括号中有空格 - 少用
 }
 ```
 注意无论何种形式，你都必须在`if`和左小括号之间加空格。如果有大括号，右小括号和左大括号之间也要有空格。
-```c++
+
+```cpp
 if(condition)     // 不好 - if后面缺了空格。
 if (condition){   // 不好 - {后面缺了空格。
 if(condition){    // 更不好
 ```
-```c++
+
+```cpp
 if (condition) {  // 好 - if后和{前都有合适的空格。
 ```
 如果可以加强可读性，短的条件语句可以放在一行。只有在代码行非常精简并且没有使用`else`语句时才能这样。
-```c++
+
+```cpp
 if (x == kFoo) return new Foo();
 if (x == kBar) return new Bar();
 ```
 当`if`语句有`else`子句时，这是不允许的：
-```c++
+
+```cpp
 // 不允许 - IF语句在有ELSE时还放在同一行上
 if (x) DoThis();
 else DoThat();
 ```
 通常，单行语句不需要花括号，但是如果你喜欢也可以使用；有复杂条件或语句的条件或循环语句使用花括号更易读。一些工程要求`if`必必须要有对应的大括号。
-```c++
+
+```cpp
 if (condition)
   DoSomething();  // 2个空格缩进。
 
@@ -1775,7 +1855,8 @@ if (condition) {
 }
 ```
 然而，如果`if-else`语句的某一部分使用了花括号，其它的部分也必须要使用：
-```c++
+
+```cpp
 // 不允许 - IF使用了花括号而ELSE没有
 if (condition) {
   foo;
@@ -1789,7 +1870,8 @@ else {
   bar;
 }
 ```
-```c++
+
+```cpp
 // 因为一部分使用了花括号，所以IF和ELSE都需要使用
 if (condition) {
   foo;
@@ -1804,7 +1886,8 @@ if (condition) {
 `switch`语句中的`case`块可以使用也可以不使用花括号，这取决于你的喜好。如果要使用花括号，需要像下面的示例那样放置。
 
 如果不是以枚举值为条件，`switch`语句应该有一个`default`匹配（如果使用枚举值，对没有处理的值编译器会有警告）。如果`default`匹配永远都不应该发生，简单使用一个`assert`即可：
-```c++
+
+```cpp
 switch (var) {
   case 0: {  // 2个空格缩进
     ...      // 4个空格缩进
@@ -1820,21 +1903,24 @@ switch (var) {
 }
 ```
 空循环体应该用`{}`或`continue`，而不能只一个单独的分号。
-```c++
+
+```cpp
 while (condition) {
   // 重复测试直到返回fasle。
 }
 for (int i = 0; i < kSomeNumber; ++i) {}  // 好 - 空循环体。
 while (condition) continue;  // 好 - continue表明无逻辑。
 ```
-```c++
+
+```cpp
 while (condition);  // 不好 - 看起来像do/while循环的一部分。
 ```
 ## 指针和引用表达式
 **点和箭头周围都不要有空格。指针操作符后面也不要有空格。**
 
 下面都是正确格式的指针和引用示例：
-```c++
+
+```cpp
 x = *p;
 p = &x;
 x = r.y;
@@ -1845,7 +1931,8 @@ x = r->y;
 - 指针操作符`*`或`&`后面没有空格。
 
 当声明指针变量或参数时，你让星号靠近类型或靠近变量名都可以：
-```c++
+
+```cpp
 // 下面这样可以，星号前面加空格。
 char *c;
 const string &str;
@@ -1854,7 +1941,8 @@ const string &str;
 char* c;    // 但是要记住多个变量的时候："char* c, *d, *e, ...;"!
 const string& str;
 ```
-```c++
+
+```cpp
 char * c;  // 不好 - * 前后都有空格
 const string & str;  // 不好 - &前后都有空格
 ```
@@ -1864,7 +1952,8 @@ const string & str;  // 不好 - &前后都有空格
 **当你的布尔表达式超过[标准行长度](#行长度)时，如何换行要保持一致。**
  
 下面的例子中，逻辑与操作符总是在行尾：
-```c++
+
+```cpp
 if (this_one_thing > this_other_thing &&
     a_third_thing == a_fourth_thing &&
     yet_another && last_one) {
@@ -1877,12 +1966,14 @@ if (this_one_thing > this_other_thing &&
 **不要徒劳地用小括号包围起`return`表达式。**
 
 只有当你在`x = expr`中也要使用括号时，才需要在`return expr`是使用小括号。
-```c++
+
+```cpp
 return result;                  // 简单情况不用括号。
 return (some_long_condition &&  // 括号使用正确，增加了复杂表达式的可读性
         another_condition);  
 ```
-```c++
+
+```cpp
 return (value);                // 不好！ 不是var = (value)的形式；
 return(result);                // 不好！ return不是函数！
 ```
@@ -1891,7 +1982,8 @@ return(result);                // 不好！ return不是函数！
 **用`=`，`()`或`{}`均可。**
 
 你可以在`=`，`()`和`{}`之间选择，下面都是正确的：
-```c++
+
+```cpp
 int x = 3;
 int x(3);
 int x{3};
@@ -1900,12 +1992,14 @@ string name("Some Name");
 string name{"Some Name"};
 ```
 在有接收`initializer_list`的构造函数的类型上使用`{}`要小必，`{}`语法会尽可能优先选择`initializer_list`构造函数。要使用其它构造函数，应使用`()`。
-```c++
+
+```cpp
 vector<int> v(100, 1);  // A vector of 100 1s.
 vector<int> v{100, 1};  // A vector of 100, 1.
 ```
 大括号形式也可以阻止整数类型窄化转型(narrowing conversion)，这可以防止一些编程错误。
-```c++
+
+```cpp
 int pi(3.14);  // OK -- pi == 3.
 int pi{3.14};  // 编译器错误： 窄化转型
 ```
@@ -1914,7 +2008,8 @@ int pi{3.14};  // 编译器错误： 窄化转型
 **井号开头的预处理指令应该在行首。**
 
 即使预处理指令在缩进的代码段中，也要从行首开始。
-```c++
+
+```cpp
 // 好 - 指令在行首
   if (lopsided_score) {
 #if DISASTER_PENDING      // 正确 -- 从行首开始
@@ -1926,7 +2021,8 @@ int pi{3.14};  // 编译器错误： 窄化转型
     BackToNormal();
   }
 ```
-```c++
+
+```cpp
 // 不好 - 缩进指令
   if (lopsided_score) {
     #if DISASTER_PENDING  // 错误！ “#if”应该在行首
@@ -1940,7 +2036,8 @@ int pi{3.14};  // 编译器错误： 窄化转型
 **代码段顺序为`public`，`protected`和`private`，各缩进一个空格。**
 
 类声明的基本形式（不包含注释，参见[类注释](#类注释)相关讨论）是：
-```c++
+
+```cpp
 class MyClass : public OtherClass {
  public:      // 注意一个空格缩进！
   MyClass();  // 普通的2空格缩进。
@@ -1974,12 +2071,14 @@ class MyClass : public OtherClass {
 **构造函数初始化列表可以在同一行上，也可以分行，后面的行都缩进4个空格。**
 
 初始化列表有两种可接受的形式：
-```c++
+
+```cpp
 // 可以放在同一行上：
 MyClass::MyClass(int var) : some_var_(var), some_other_var_(var + 1) {}
 ```
 或
-```c++
+
+```cpp
 // 需要多行，缩进4个空格，算上第一行的冒号
 MyClass::MyClass(int var)
     : some_var_(var),             // 4空格缩进
@@ -1993,7 +2092,8 @@ MyClass::MyClass(int var)
 **命名空间内容不缩进。**
 
 命名空间不增加缩进层次。如:
-```c++
+
+```cpp
 namespace {
 
 void foo() {  // 正确。命名空间里不需要额外的缩进。
@@ -2003,7 +2103,8 @@ void foo() {  // 正确。命名空间里不需要额外的缩进。
 }  // namespace
 ```
 命名空间不需要缩进：
-```c++
+
+```cpp
 namespace {
 
   // 错误。不应该有缩进。
@@ -2014,7 +2115,8 @@ namespace {
 }  // namespace
 ```
 当声明了嵌套命名空间时，每个一行：
-```c++
+
+```cpp
 namespace foo {
 namespace bar {
 ```
@@ -2022,7 +2124,8 @@ namespace bar {
 **水平空白取决于位置。不要在行尾添加空白。**
 
 ### 普通
-```c++
+
+```cpp
 void f(bool b) {  // 左大括号前面总需要空格。
   ...
 int i = 0;  // 分号前面通常没有空格。
@@ -2038,7 +2141,8 @@ class Foo : public Bar {
 ```
 行尾添加空格和给其它编辑代码的人造成额外的负担，当他们合并时，会删除已存在的空白。所以，不要引入行尾空白。编辑时删除行尾的空白，或通过单独的清理操作删除（当然要在没有其它人正在使用此文件时）。
 ### 循环和条件语句
-```c++
+
+```cpp
 if (b) {          // 条件和循环中关键字后面有空格。
 } else {          // else周围有空格
 }
@@ -2059,7 +2163,8 @@ switch (i) {
   case 2: break;  // 如果冒号后有代码，就需要加空格。
 ```
 ### 操作符
-```c++
+
+```cpp
 x = 0;              // 赋值操作符周围需要空格。
 x = -5;             // 一元操作符和其参数之间不需要空格。
 ++x;
@@ -2070,7 +2175,8 @@ v = w*x + y/z;      // 但删除因子周围的空格也可以。
 v = w * (x + z);    // 小括号内不需要空格。
 ```
 ### 模板和类型转换
-```c++
+
+```cpp
 vector<string> x;           // 尖括号内部（<和>），<之前或>(之间不需要空格。
 y = static_cast<char*>(x);
 vector<char *> x;           // 类型和指针符号间可以有空格，但要保持一致。
