@@ -109,10 +109,45 @@ Jason Hickey是加州山景城Google公司的一名软件工程师。他所在�
 - Stephen Weeks负责Core背后的模块化架构，他丰富的笔记是[20章，值的内存表示](#值的内存表示)和[21章，理解垃圾收集器](#理解垃圾收集器)的基础。
 - Jeremie Diminio是**utop**的作者，本书的代码片都在使用。
 
-# I. Language Concepts
+# I. 语言概念
 
-## 1. A Guided Tour
-### OCaml as a calculator
+## 第一章 导览
+本章通过一系列覆盖了大部分主要语言特性的小例子给出了OCaml的概观。这提供了OCaml语言能做什么的直观印象，但对每一个话题都不深入讨论。
+
+贯穿本书会一直使用Core，一个全功能的OCaml标准库的兼容替代。我们也会使用 **utop**，一个shell，允许你键入表达式并交互式求值。 **utop**是OCaml标准顶层（toplevel，你可以从命令行输入`ocaml`启动）的一个更易用的版本。这些教程会特别假设你使用 **utop**。
+
+开始之前，确保你完成了OCaml的安装，这样就可以试验读到的例子。查看[附录A（安装）](#附录A)以获得更多细节。
+
+### OCaml作为计算器
+使用Core要做的第一件事就是打开`Core.Std`。
+```ocaml
+(* OCaml Utop * guided-tour/main.topscript * all code *)
+# open Core.Std;;
+```
+这使得Core中的定义可以使用，在本书的大部分例子中都需要。
+
+现在我们可以尝试一些简单的数值运算。
+```ocaml
+(* OCaml Utop * guided-tour/main.topscript , continued (part 1) * all code *)
+# 3 + 4;;
+- : int = 7
+# 8 / 3;;
+- : int = 2
+# 3.5 +. 6.;;
+- : float = 9.5
+# 30_000_000 / 300_000;;
+- : int = 100
+# sqrt 9.;;
+- : float = 3. 
+```
+总的来说，这和其它编程语言很相似，但还是有几件事要注意。
+
+- 我们需要键入`;;`以告诉tolevel它应该求值一个表达式。这是toplevel独有的，在独立的程序中并不需要（尽管有时包含`;;`会使顶层声明的结束更明显，从而改善OCaml的错误报告）。
+- 对表达式求值之后，toplevel先打印出结果，然后是结果的类型。
+- 函数参数以空格分隔而不是括号和逗号，这更像UNIX的shell而不是C或Java这样的传统语言。
+- OCaml允许你在数字字面值中间加下划线来增加可读性。注意下划线可以放在数字的任何位置，而不限于每三个数字一组。
+- OCaml严格区分`float`（浮点数类型）和`int`（整数类型）。不同类型的字面值不同（`6.`和`6`），中缀操作符也不同（`+.`和`+`），而且OCaml不会在这些类型之间自动转换。这可能有点麻烦，但是也有其好处，因为可以阻止其它语言因为`int`和`float`行为不同而引发的bug。比如，在许多语言中`1 / 3`等于`0`，而`1 / 3.0`却等于三分之一。OCaml要求你必须明确要执行什么操作。
+
 ### Functions and type inference
 #### Type inference
 #### Inferring generic types
