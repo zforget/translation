@@ -50,7 +50,7 @@ Core是一个全面高效的标准库，但除此之外还有许多OCaml软件�
 
 OPAM包管理器大大简化了第三方库的安装和管理。本书中我们会更详细介绍OPAM，它构成了平台的基础，包括一组工具和库，配合OCaml编译器，让你可以又快又好地构建实用的应用程序。
 
-我们也使用OPAM来安装**utop**命令行界面。这是一个现代解释器，支持历史命令、宏展开，模块补全和其它细节，使得使用OCaml更舒服。贯穿本书，我们都会使用**utop**，这样你就可以交互式单步运行例子。
+我们也使用OPAM来安装 **utop**命令行界面。这是一个现代解释器，支持历史命令、宏展开，模块补全和其它细节，使得使用OCaml更舒服。贯穿本书，我们都会使用**utop**，这样你就可以交互式单步运行例子。
 
 ## 关于本书
 Real World OCaml的目标读者是有一些传统语言经验的程序员，但对于静态类型函数式语言经验没有要求。根据你的背景，我们涵盖的一些概念对你来说也许的全新的，包括诸如高阶函数和不可变数据类型等传统的函数式编程技术，还有OCaml强大的类型和模块系统。
@@ -107,7 +107,7 @@ Jason Hickey是加州山景城Google公司的一名软件工程师。他所在�
 - Leo White为[第11章，对象](#对象)和[12章，类](#类)贡献了大量内容和示例。
 - Jeremy Yallop是[19章，外部功能接口](#FFI)描述的Ctypes库和文档的作者
 - Stephen Weeks负责Core背后的模块化架构，他丰富的笔记是[20章，值的内存表示](#值的内存表示)和[21章，理解垃圾收集器](#理解垃圾收集器)的基础。
-- Jeremie Diminio是**utop**的作者，本书的代码片都在使用。
+- Jeremie Diminio是 **utop**的作者，本书的代码片都在使用。
 
 # I. 语言概念
 
@@ -175,7 +175,7 @@ val x' : int = 8
 - : int = 16
 (* OCaml Utop ∗ guided-tour/main.topscript , continued (part 3) ∗ all code *)
 ```
-注意默认情况下，**utop**不会打印下划线开头的变量。
+注意默认情况下， **utop**不会打印下划线开头的变量。
   
 下面的例子是不合法的。
 ```ocaml
@@ -196,7 +196,7 @@ Error: Parse error: [fun_binding] expected after [ipatt] (in [let_binding])
 错误信息有点诡异，但当你对OCaml了解更多时就会明白了。
 
 ### 函数和类型推导
-The let syntax can also be used to define a function. 0 comments
+`let`语法也可以用以定义函数。
 ```ocaml
 # let square x = x * x ;;
 val square : int -> int = <fun>
@@ -204,11 +204,12 @@ val square : int -> int = <fun>
 - : int = 4
 # square (square 2);;
 - : int = 16
-OCaml Utop ∗ guided-tour/main.topscript , continued (part 5) ∗ all code
-```
-OCaml中的函数和其它值是一样的，这就是为什么我们使用`let`关键字来把函数绑定成一个变量名，就和绑定一个整数这样的简单值到变量名一样。当使用`let`定义函数时，`let`后的第一个标识符是函数名，后面跟着参数列表。综上所述，上面的`square`就是一个只有一个参数的函数。
 
-现在我们创建了如函数这样的更有趣的值，其类型也变得更有趣。`int -> int`是一个函数类型，表示一个接收一个`int`型参数并返回`int`型结果的参数。我们也可以写出接收多个参数的函数。（注意下面的例子只有打开`Core.Std`时才能工作。）
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 5) ∗ all code *)
+```
+OCaml中的函数和其它值是一样的，这就是为什么我们使用`let`关键字来把函数绑定到一个变量名，就和绑定一个整数这样的简单值到变量名一样。当使用`let`定义函数时，`let`后的第一个标识符是函数名，后面跟着参数列表。综上所述，上面的`square`就是一个只有一个参数的函数。
+
+现在我们创建了如函数这样更有趣的值，其类型也变得更有趣。`int -> int`是一个函数类型，表示一个接收一个`int`型参数并返回`int`型结果的参数。我们也可以写出接收多个参数的函数。（注意下面的例子只有打开`Core.Std`时才能工作。）
 ```ocaml
 # let ratio x y =
      Float.of_int x /. Float.of_int y
@@ -219,9 +220,9 @@ val ratio : int -> int -> float = <fun>
 
 (* OCaml Utop ∗ guided-tour/main.topscript , continued (part 6) ∗ all code *)
 ```
-上面恰好也是我们第一次使用模块。这里，`Float.of_int`引用了`Float`模块中的`of_int`函数。这与你在面向对象语言中的经验不同，那里点号通常被用来访问对象的方法。注意模块名必须以大写字母开头。
+上面恰好也是我们第一次使用模块。这里，`Float.of_int`引用了`Float`模块中的`of_int`函数。这与你在面向对象语言中的经验不同，在那里点号通常被用来访问对象的方法。注意模块名必须以大写字母开头。
 
-多参数函数类型签名的记法开始看着会有点不适应，当我们在[“多参数函数”一节](#多参数函数)讲函数柯里化时会解释。现在只要记住，箭头作为函数参数的分隔符，最后一个箭头后面跟着返回值类型。因此，`int -> int -> float`描述了一个接收两个`int`参数返回一个`float`的函数。
+多参数函数类型签名的记法开始看着会有点不适应，这一点我们在[“多参数函数”一节](#多参数函数)讲函数柯里化时会解释。现在只要记住，箭头作为函数参数的分隔符，最后一个箭头后面跟着返回值类型。因此，`int -> int -> float`描述了一个接收两个`int`参数返回一个`float`的函数。
 
 函数也可以以其它函数作为参数。下面的例子是一个接收3个参数的函数：一个测试函数和两个整数参数。这个函数返回可以通过测试函数的两个整数参数之和。
 ```ocaml
@@ -233,7 +234,7 @@ val sum_if_true : (int -> bool) -> int -> int -> int = <fun>
 
 (* OCaml Utop ∗ guided-tour/main.topscript , continued (part 7) ∗ all code *)
 ```
-仔细观察推导出的类型签名，我们会看到第一个参数是一个函数，它接收一个整数参数并返回一个布尔值，剩下的两个参数是整形的。下面是如何使用该函数的例子。
+仔细观察推导出的类型签名，我们会看到第一个参数是一个函数，它接收一个整数参数并返回一个布尔值，剩下的两个参数是整型的。下面是如何使用该函数的例子。
 ```ocaml
 # let even x =
     x mod 2 = 0 ;;
