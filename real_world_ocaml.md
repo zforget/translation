@@ -249,7 +249,34 @@ val even : int -> bool = <fun>
 注意在`even`的定义中，`=`有两种不同的使用方式：一是在`let`绑定中分隔内容和其定义;一是在相等测试中，用于比较`x mod 2`和`0`。尽管形式一样，但却是非常不同的操作。
 
 #### 类型推导
-#### Inferring generic types
+当类型越来越复杂时，你可能会问OCaml在是如何在我们没有给出显式类型信息的情况推导出类型的。
+
+OCaml使用一种叫作类型推导的技术来确定表达式的类型，使用这种技术，可以从变量类型以及在表达式结构中隐含的约束中推导出表达式的类型。
+
+作为例子，我们过一遍推导`sum_if_true`的类型的过程。
+- OCaml要求`if`语句的两个分支有相同的类型，所以表达式`if test first then first else 0`要求`first`必须和`0`类型相同，所以`first`必须是`int`型。同样从`if test second then second else 0`我们也能推导出`second`是`int`型的。
+- `test`以`first`为参数。因为`first`是`int`型的，所以`test`的输入也必须是`int`型的。
+- `test first`被用做`if`语句的条件，所以`test`的返回值必须是`bool`型的。
+- `+`返回`int`意味着`sum_if_true`的返回值必须是`int`。
+
+综上所述，就确定了所有变量的类型，这也确定了`sum_if_true`的整体类型。
+
+随着时间推移，你会建立一个关于OCaml类型推导引擎工作原理的粗略直觉，这有助于使你的程序保持合理。你可以通过添加显式的类型标注来使表达式类型更易理解。这些类型标注不会影响OCaml程序的行为，但它们可以作为很好的文档，同时也能检查到无意的类型改变。它们也有助于指出为什么一段代码不能通过编译。
+
+这是带类型标注版本的`sum_if_true`：
+```ocaml
+# let sum_if_true (test : int -> bool) (x : int) (y : int) : int =
+     (if test x then x else 0)
+     + (if test y then y else 0)
+  ;;
+val sum_if_true : (int -> bool) -> int -> int -> int = <fun>
+
+(* OCaml Utop * guided-tour/main.topscript , continued (part 9) * all code *)
+```
+上面，我们用其类型标注了函数的每个参数，最后还指出了返回值类型。这样的标注可以用在OCaml程序的任何表达式上。
+
+#### 泛型类型推导
+
 ### Tuples, lists, options, and pattern matching
 #### Tuples
 #### Lists
