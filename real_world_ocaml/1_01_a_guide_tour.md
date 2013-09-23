@@ -784,9 +784,121 @@ val sum : int list -> int = <fun>
 ```
 这并不是求和一个列表的最惯用的（或者说最快的）方法，但是它向你展示了如何用`ref`来取代可变变量。
 
-#### For and while loops
+#### For和while循环
+OCaml也支持传统命令式的控制流概念，如`for`和`while`循环。下面的例子中使用`for`循环来重排数组。我们使用`Random`模块作为随机源。`Random`从一个默认种子开始，但是你也可以调用`Random.self_init`来选择一个新的随机种子。
+```ocaml
+# let permute array =
+    let length = Array.length array in
+    for i = 0 to length - 2 do
+       (* pick a j that is after i and before the end of the array *)
+       let j = i + 1 + Random.int (length - i - 1) in
+       (* Swap i and j *)
+       let tmp = array.(i) in
+       array.(i) <- array.(j);
+       array.(j) <- tmp
+    done
+  ;;
+val permute : 'a array -> unit = <fun>
 
-### A complete program
-#### Compiling and running
-### Where to go from here
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 58) ∗ all code *)
+```
+从语法的角度上，你应该会注意到区分出`for`循环的关键字：`for`、`to`、`do`和`done`。
+
+下面是执行这段代码的例子。
+```ocaml
+# let ar = Array.init 20 ~f:(fun i -> i);;
+val ar : int array =
+  [|0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15; 16; 17; 18; 19|]
+# permute ar;;
+- : unit = ()
+# ar;;
+- : int array =
+[|1; 2; 4; 6; 11; 7; 14; 9; 10; 0; 13; 16; 19; 12; 17; 5; 3; 18; 8; 15|]
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 59) ∗ all code *)
+```
+OCaml也支持`while`循环，下面的函数中会展示这一点，这个函数用以查找数组中第一个负数的位置。注意`while`（和`for`一样）也是一个关键字。
+```ocaml
+# let find_first_negative_entry array =
+     let pos = ref 0 in
+     while !pos < Array.length array && array.(!pos) >= 0 do
+       pos := !pos + 1
+     done;
+     if !pos = Array.length array then None else Some !pos
+  ;;
+val find_first_negative_entry : int array -> int option = <fun>
+# find_first_negative_entry [|1;2;0;3|];;
+- : int option = None
+# find_first_negative_entry [|1;-2;0;3|];;
+- : int option = Some 1
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 60) ∗ all code *)
+```
+要作为旁注指出的是，上面的代码利用了`&&`，OCaml中的与操作符，有短路效应。在形如`expr1 && expr2`的表达式中，只有`expr1`求值为真时，`expr2`才会求值。如果不是这样，上面的函数会导致边界溢出错误。事实上，我们可以重写这个函数，触发一个边界溢出错误以避免短路效应。
+```ocaml
+# let find_first_negative_entry array =
+     let pos = ref 0 in
+     while
+       let pos_is_good = !pos < Array.length array in
+       let element_is_non_negative = array.(!pos) >= 0 in
+       pos_is_good && element_is_non_negative
+     do
+       pos := !pos + 1
+     done;
+     if !pos = Array.length array then None else Some !pos
+  ;;
+val find_first_negative_entry : int array -> int option = <fun>
+# find_first_negative_entry [|1;2;0;3|];;
+Exception: (Invalid_argument "index out of bounds").
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 61) ∗ all code *)
+```
+或操作符`||`也有类似的短路行为。
+
+### 一个完整的程序
+目前为止，我们已经使用 **utop**把玩了基本的语言特性。现在我们要展示如何创建一个简单的独立程序。我们会建立一个程序，求从标准输入读取的一组数之和。
+
+下面是代码，你可以保存到一个名为sum.ml的文件中。注意我们没有使用`;;`来结束表达式，因为只有在toplevel才要求这样。
+```ocaml
+open Core.Std
+
+let rec read_and_accumulate accum =
+  let line = In_channel.input_line In_channel.stdin in
+  match line with
+  | None -> accum
+  | Some x -> read_and_accumulate (accum +. Float.of_string x)
+
+let () =
+  printf "Total: %F\n" (read_and_accumulate 0.)
+
+(* OCaml ∗ guided-tour/sum.ml ∗ all code *)
+```
+这是我们首次使用OCaml的输入输出例程。`read_and_accumulate`是一个递归函数，用`In_channel.input_line`来按行读取标准输入，每次迭代都使用更新后的累加值`sum`调用自身。`input_line`返回一个option值，None表明输入流结束。
+
+`read_and_accumulate`返回后，需要打印和。这是使用`printf`命令完成的，它提供了类型安全的格式化字符串支持，就和你在许多其它语言看到的一样。格式化字符串由编译器解析并用以确定剩余参数的数量和类型。这里只有一个单独的格式化指令，`%F`，所以`printf`还需要一个`float`类型的参数。
+
+#### 编译和运行
+我们使用 **corebuild**来编译我们的程序，这是一个在 **ocamlbuild**基础上的小包装器， **ocamlbuild**是一个使用OCaml编译器的构建工具。 **corebuild**脚本随Core一起安装，目的是传递使用Core的程序所需的标志。
+```bash
+$ corebuild sum.native
+
+# Terminal ∗ guided-tour/build_sum.out ∗ all code
+```
+.native后缀表示我们要构建本地可执行代码，我们会在[第4章文件、模块和程序](#文件模块和程序)中详细讨论。构建完成后，我们就可以像命令行工具一样使用产生的程序。我们向sum.native输入一系列数字，一行一个，敲control-d结束输入。
+```bash
+$ ./sum.native
+1
+2
+3
+94.5
+Total: 100.5
+
+# Terminal ∗ guided-tour/sum.out ∗ all code
+```
+要创建一个有用的命令行程序还有许多工作要做，包括一个合适的命令行解析接口和更好的错误处理，所有这些会在[第14章命令行解析](#命令行解析)中介绍。
+
+### 下一步干什么
+作为导览也就这样了！还有许多特性没有介绍，许多细节需要解释，但我们希望你已经建立了对OCaml的大致印象，并在本书接下来的阅读中更舒服。
+
+
 
