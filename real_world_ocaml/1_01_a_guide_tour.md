@@ -492,12 +492,300 @@ val destutter : 'a list -> 'a list = <fun>
 最近的几个例子中，我们的列表处理函数包含了许多递归函数。实际中，这通常都是不必要的。大多数情况下，你会更乐于使用List模块中的迭代函数。但知道如何使用递归是有好处的，以防你要用它做点新的事情。
 
 #### Options
-### Records and variants
-### Imperative programming
-#### Arrays
-#### Mutable record fields
-#### Refs
+> 不知道如何翻译（zck）
+
+OCaml中的另一个常用数据结构是option。option用以表示一个可能存在或不存在的值。如：
+```ocaml
+# let divide x y =
+    if y = 0 then None else Some (x/y) ;;
+val divide : int -> int -> int option = <fun>
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 37) ∗ all code *)
+```
+如果除数为0,`divide`函数就返回`None`，否则返回除法结果的`Some`。`Some`和`None`是option的构造器，就和`::`和`[]`是列表的构造器一样。你可以把option看作只能有零个和一个元素的列表。
+
+与元组和列表一样，我们可以使用模式匹配来检查option的内容。看下面这个函数，可以从一个可选的时间和一条消息创建一条日志。如果没有给定时间（即，时间为`None`），就使用当前时间。
+```ocaml
+# let log_entry maybe_time message =
+    let time =
+      match maybe_time with
+      | Some x -> x
+      | None -> Time.now ()
+    in
+    Time.to_sec_string time ^ " -- " ^ message
+  ;;
+val log_entry : Time.t option -> string -> string = <fun>
+# log_entry (Some Time.epoch) "A long long time ago";;
+- : string = "1970-01-01 01:00:00 -- A long long time ago"
+# log_entry None "Up to the minute";;
+- : string = "2013-08-18 14:48:08 -- Up to the minute"
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 38) ∗ all code *)
+```
+本例中使用Core中的`Time`模块来处理时间，使用了`^`来拼接字符串，`^`来自`Pervasives`模块，这个模块在每一个OCaml程序中都会默认打开。
+> **使用`let`和`in`实现嵌套let**
+>
+> 在`log_entry`中我们首次在函数体中用`let`定义变量。`let`和`in`一起可以在包括函数体在内的任何局部作用域中引入新的绑定。`in`标志了新变量可以在其中使用的作用域的开头。因此，我们可以这样写：
+> ```ocaml
+> # let x = 7 in
+>   x + x
+>   ;;
+> - : int = 14
+> 
+> (* OCaml Utop ∗ guided-tour/local_let.topscript ∗ all code *)
+> ```
+> 注意`let`绑定以两个分号结束。所以`x`的值以后就不能用了。
+> ```ocaml
+> # x;;
+> Characters -1-1:
+> Error: Unbound value x
+> 
+> (* OCaml Utop ∗ guided-tour/local_let.topscript , continued (part 1) ∗ all code *)
+> ```
+> 我们也可以在一行上有多个`let`，每个都会在前面的基础上添加一个新变量。
+> ```ocaml
+> # let x = 7 in
+>   let y = x * x in
+>   x + y
+>   ;;
+> - : int = 56
+> 
+> (* OCaml Utop ∗ guided-tour/local_let.topscript , continued (part 2) ∗ all code *)
+> ```
+> 这种嵌套`let`绑定是构建复杂表达式的通用方法，每个`let`都命名了一部分，最后在表达式中组合在一起。
+
+option非常重要，因为它是OCaml中表示一个可能不存在的值的标准方法，OCaml是没有`NullPointException`这类东西的。这与大多数语言都不一样，包括Java和C#，在这些语言中即使不是所有的，起码也有大部分数据类型是可以为空的，就是说，不管什么类型，它们的值都可能是一个空值。这些语言中，到处都潜伏着空值。
+
+OCaml中，不存在的值是显式的。类型为`string * string`值一定总是真的包含两个正确定义的`string`型值。如果你想要第一个可以不存在，那么就要把类型改为`string option * string`。在[第七章错误处理](#错误处理)中我们会看到，这种显式声明使编译器可以给我们提供巨大的帮助，确保我们已经正确处理了值不存在的情况。
+
+### 记录(Record)和变体(Variant)
+到目前为止我们见到的数据结构都是语言预定义的，像列表和元组。但OCaml同样也允许我们定义新的数据类型。下面是一个玩具示例，定义了一个表示二维点的数据类型。
+```ocaml
+# type point2d = { x : float; y : float };;
+type point2d = { x : float; y : float; }
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 41) ∗ all code *)
+```
+`point2d`是一个记录类型，你可以把记录想成是一个元组，但每个字段都有命名，而不是按位置区分。记录类型很容易构造：
+```ocaml
+# let p = { x = 3.; y = -4. };;
+val p : point2d = {x = 3.; y = -4.}
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 42) ∗ all code *)
+```
+并且我们可以用模式匹配访问这些类型的内容：
+```ocaml
+# let magnitude { x = x_pos; y = y_pos } =
+    sqrt (x_pos ** 2. +. y_pos ** 2.);;
+val magnitude : point2d -> float = <fun>
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 43) ∗ all code *)
+```
+这里模式匹配把`x_pos`变量绑定到`x`字段的值，把`y_pos`变量绑定到`y`字段的值。
+
+我们可以一种 **字段名双关(field punning)**技术把上面的代码写得更精炼，字段名和其绑定的变量名在匹配中一定会一致，这样我们就不用两个都写了。使用这种技术，`magnitude`函数可以像下面这样重写。
+```ocaml
+# let magnitude { x; y } = sqrt (x ** 2. +. y ** 2.);;
+val magnitude : point2d -> float = <fun>
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 44) ∗ all code *)
+```
+也可以使用点号访问记录的字段：
+```ocaml
+# let distance v1 v2 =
+     magnitude { x = v1.x -. v2.x; y = v1.y -. v2.y };;
+val distance : point2d -> point2d -> float = <fun>
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 45) ∗ all code *)
+```
+我们当然可以在更大的类型中使用新创建的类型。下面的例子中，是一些建摸不同几何物体的类型，其中用到了`point2d`。
+```ocaml
+# type circle_desc  = { center: point2d; radius: float }
+  type rect_desc    = { lower_left: point2d; width: float; height: float }
+  type segment_desc = { endpoint1: point2d; endpoint2: point2d } ;;
+type circle_desc = { center : point2d; radius : float; } type rect_desc = { lower_left : point2d; width : float; height : float; } type segment_desc = { endpoint1 : point2d; endpoint2 : point2d; }
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 46) ∗ all code *)
+```
+现在想象一下你需要把这些类型的多个物体组合在一起作为一个多物体场景的描述。你需要一些统一的方法将这些物体用一种类型表示。变体类型是实现这种需求的一个方法：
+```ocaml
+# type scene_element =
+    | Circle  of circle_desc
+    | Rect    of rect_desc
+    | Segment of segment_desc
+  ;;
+type scene_element = Circle of circle_desc | Rect of rect_desc | Segment of segment_desc
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 47) ∗ all code *)
+```
+变体的不同情况用`|`分开（第一个`|`是可选的），并一种情况都有一个大写字母开头的标签以彼此区分，像`Circle`、`Rect`和`Segment`。
+
+现在来看看我们如何写一个函数来测试一个点是否在一个`sense_element`列表的一些元素内部。
+```ocaml
+# let is_inside_scene_element point scene_element =
+     match scene_element with
+     | Circle { center; radius } ->
+       distance center point < radius
+     | Rect { lower_left; width; height } ->
+       point.x    > lower_left.x && point.x < lower_left.x +. width
+       && point.y > lower_left.y && point.y < lower_left.y +. height
+     | Segment { endpoint1; endpoint2 } -> false
+  ;;
+val is_inside_scene_element : point2d -> scene_element -> bool = <fun>
+# let is_inside_scene point scene =
+     List.exists scene
+       ~f:(fun el -> is_inside_scene_element point el)
+   ;;
+val is_inside_scene : point2d -> scene_element list -> bool = <fun>
+# is_inside_scene {x=3.;y=7.}
+    [ Circle {center = {x=4.;y= 4.}; radius = 0.5 } ];;
+- : bool = false
+# is_inside_scene {x=3.;y=7.}
+    [ Circle {center = {x=4.;y= 4.}; radius = 5.0 } ];;
+- : bool = true
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 48) ∗ all code *)
+```
+这里`match`的使用可能会让你想起`match`和`option`以及`list`一都使用的情景。这并不意外：`option`和`list`实际上都是变体类型的例子，只是他们太重要了，以至于需要在标准库中定义（列表还有特殊的语法）。
+
+调用`List.exists`时我们首次使用了 **匿名函数**。匿名函数使用`fun`关键字声明，不需要显式命名。这种函数在OCaml中很常用，特别是在使用`List.exists`这种迭代函数时。
+
+`List.exists`函数可以检查给定的列表中是否有这样的元素，在上面调用给定的函数时值为`true`。这里，我们用`List.exists`来检查是否存在一个元素，我们给定的点在其内部。
+
+### 命令式编程
+目前为止我们写的代码都是纯函数式，大至说就是代码运行时不修改变量或值。实际上，我们碰到的所有数据结构都是不可变的，就是说在这种语言中没有办法改变它们。这和命令式编译有很大的不同，命令式编程中，计算结构就是一些指令序列，这些指令以修改程序的状态的方式执行。
+
+OCaml中默认的是函数式代码，使用变量绑定，大多数数据结构都是不可变的。但OCaml也可以很好地支持命令式编译，提供了可变数据结构，如数组和哈希表等，也提供了像`for`和`while`循环这样的控制流概念。
+
+#### 数组（Array）
+可能OCaml中最简单的可变数据结构就是数组。OCaml中的数组和其它语言（如C）中的非常相似：索引从0开始，访问和修改数组元素的时间复杂度是常数级的。数组比OCaml中包括列表在内的其它数据结构的内存利用都紧凑。下面是一个例子：
+```ocaml
+# let numbers = [| 1; 2; 3; 4 |];;
+val numbers : int array = [|1; 2; 3; 4|]
+# numbers.(2) <- 4;;
+- : unit = ()
+# numbers;;
+- : int array = [|1; 2; 4; 4|]
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 49) ∗ all code *)
+```
+`.(i)`语法用来引用一个数组元素，`<-`语法用以修改。因为数组元素从0开始计数，所以`.(2)`是第三个元素。
+
+上面出现的`uint`类型很有意思，它只能有一个值，就是`()`。这意味着`uint`的值不能传递任何信息，所以通常被用作占位符。因此，我们用`uint`作为设置可变字段这类操作的返回值，使用副作用而不是返回值和外界通信。也被用作函数参数，表明函数不需要任何输入。和C语言以及Java语言中`void`的角色类似。
+
+#### 可变记录字段
+数组是重要的可变数据结构，但不是唯一的。记录默认是不可变的，但是其中的一些字段可以显式声明成可变的。下面这个小例子中，是一个数据结构，用以存储一组数连续的统计摘要。基本数据结构如下：
+```ocaml
+# type running_sum =
+   { mutable sum: float;
+     mutable sum_sq: float; (* sum of squares *)
+     mutable samples: int;
+   }
+  ;;
+type running_sum = { mutable sum : float; mutable sum_sq : float; mutable samples : int; }
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 50) ∗ all code *)
+```
+`running`被设计为易于增量扩展，并足以计算均值和标准差，如下所示。注意两个`let`绑定之间没有双分号，因为双分号只有在告诉utop执行输入时才需要，不是用来分隔两个声明的。
+```ocaml
+# let mean rsum = rsum.sum /. float rsum.samples
+  let stdev rsum =
+     sqrt (rsum.sum_sq /. float rsum.samples
+           -. (rsum.sum /. float rsum.samples) ** 2.) ;;
+val mean : running_sum -> float = <fun> val stdev : running_sum -> float = <fun>
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 51) ∗ all code *)
+```
+上面我们使用了`float`函数，是`Float.of_int`的方便替代，由`Pervasives`模块提供。
+
+我们还需要创建和更新`running_sum`的函数：
+```ocaml
+# let create () = { sum = 0.; sum_sq = 0.; samples = 0 }
+  let update rsum x =
+     rsum.samples <- rsum.samples + 1;
+     rsum.sum     <- rsum.sum     +. x;
+     rsum.sum_sq  <- rsum.sum_sq  +. x *. x
+  ;;
+val create : unit -> running_sum = <fun> val update : running_sum -> float -> unit = <fun>
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 52) ∗ all code *)
+```
+`create`返回一个和空集相关的`running_sum`，`update rsum x`通过更新样本数、和以及平方和来修改`rsum`，以反映将`x`添加到样本集合中。
+
+注意上面代码中操作序列之间单引号的使用。当我们之写纯函数式代码时，这是不需要的，但是当写命令式代码时，就要开始使用它了。
+
+下面是使用`create`和`update`的例子。代码中使用了`List.iter`，它会对列表的每个元素执行函数`~f`。
+```ocaml
+# let rsum = create ();;
+val rsum : running_sum = {sum = 0.; sum_sq = 0.; samples = 0}
+# List.iter [1.;3.;2.;-7.;4.;5.] ~f:(fun x -> update rsum x);;
+- : unit = ()
+# mean rsum;;
+- : float = 1.33333333333
+# stdev rsum;;
+- : float = 3.94405318873
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 53) ∗ all code *)
+```
+需要指出的是上面的算法在数学上是很天真的，面对删除操作时精度很底。你可以看看维基百科上的[这篇文章](http://en.wikipedia.org/wiki/Algorithms_for_calculating_variance)，特别关注一下加权增量和并行算法。
+
+#### 引用（Ref）
+我们可以使用`ref`创建一个单独的可变值。`ref`类型是标准库中预定义的，并没有什么特别的，它只是一个普通的记录类型，拥有一个名为`contents`的单独的可变字段。
+```ocaml
+# let x = { contents = 0 };;
+val x : int ref = {contents = 0}
+# x.contents <- x.contents + 1;;
+- : unit = ()
+# x;;
+- : int ref = {contents = 1}
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 54) ∗ all code *)
+```
+为了让`ref`更方便使用，定义了几个函数和操作符。
+```ocaml
+# let x = ref 0  (* create a ref, i.e., { contents = 0 } *) ;;
+val x : int ref = {contents = 0}
+# !x             (* get the contents of a ref, i.e., x.contents *) ;;
+- : int = 0
+# x := !x + 1    (* assignment, i.e., x.contents <- ... *) ;;
+- : unit = ()
+# !x ;;
+- : int = 1
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 55) ∗ all code *)
+```
+这些操作符也没有什么神奇的。你完全可以用几行代码重新实现`ref`类型和所有这些操作符。
+```ocaml
+# type 'a ref = { mutable contents : 'a }
+
+  let ref x = { contents = x }
+  let (!) r = r.contents
+  let (:=) r x = r.contents <- x
+  ;;
+type 'a ref = { mutable contents : 'a; }
+val ref : 'a -> 'a ref = <fun>
+val ( ! ) : 'a ref -> 'a = <fun>
+val ( := ) : 'a ref -> 'a -> unit = <fun>
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 56) ∗ all code *)
+```
+`ref`前面的`'a`表示`ref`类型是多态的，和列表多态一样，指可以持有任何类型的值。`!`和`:=`周围的括号是必须的，因为它们是操作符，而不是普通函数。
+
+尽管`ref`只是另外一个记录类型，它也是很重要的，因为它是模拟传统语言可变变量的标准方法。例如，我们可以命令式求列表元素的和，使用一个`ref`来累加结果。
+```ocaml
+# let sum list =
+    let sum = ref 0 in
+    List.iter list ~f:(fun x -> sum := !sum + x);
+    !sum
+  ;;
+val sum : int list -> int = <fun>
+
+(* OCaml Utop ∗ guided-tour/main.topscript , continued (part 57) ∗ all code *)
+```
+这并不是求和一个列表的最惯用的（或者说最快的）方法，但是它向你展示了如何用`ref`来取代可变变量。
+
 #### For and while loops
+
 ### A complete program
 #### Compiling and running
 ### Where to go from here
