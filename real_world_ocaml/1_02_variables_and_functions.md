@@ -275,9 +275,9 @@ OCaml处理这种调用约定也非常高效。特别是，通常都不必为了
 这两种方法差异很小，但是大多数时候你都应该使用柯里化形式，因为它是OCaml中默认的。
 
 #### 递归函数
-定义中又调用了自己的函数就是 **递归**的。递归在任何编程语言中都很重要，但对函数式语言尤为如此，因为递归是函数式语言实现循环结构的手段。（第8章命令式编程中我们会详细介绍，OCaml也支持`for`循环和`while`循环，但是它们只是在使用OCaml的命令式编程特性时才有用。）
+定义中又调用了自己的函数就是 **递归**的。递归在任何编程语言中都很重要，但对函数式语言尤为如此，因为递归是函数式语言实现循环结构的手段。（[第8章命令式编程](#命令式编程)中我们会详细介绍，OCaml也支持`for`循环和`while`循环，但是它们只是在使用OCaml的命令式编程特性时才有用。）
 
-要定义递归函数，你需要使用`rec`关键将`let`绑定标记成递归的，下面是一个例子，是一个查找列表第一个重复元素序列的函数。
+要定义递归函数，你需要使用`rec`关键字将`let`绑定标记成递归的，下面是一个例子，是一个查找列表第一个重复元素序列的函数。
 ```ocaml
 # let rec find_first_stutter list =
     match list with
@@ -291,9 +291,9 @@ val find_first_stutter : 'a list -> 'a option = <fun>
 
 (* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 22) ∗ all code *)
 ```
-模式`[] | [_]`是一个 **或模式**，是两个模式的组合，只要任何一个模式匹配即可。这里`[]`匹配空列表，`[_]`匹配只有一个元素的列表。使用`_`我们为这个单独的元素指定显式名称了。
+模式`[] | [_]`是一个 **或模式**，是两个模式的组合，只要任何一个模式匹配即可。这里`[]`匹配空列表，`[_]`匹配只有一个元素的列表。使用`_`我们就不用为这个单独的元素指定显式名称了。
 
-使用`let rec`和`and`配合我们也能定义多个互相递归的值。下面是一个例子（天生低效）。
+使用`let rec`和`and`配合我们也能定义多个交互递归的值。下面是一个例子（天生低效）。
 ```ocaml
 # let rec is_even x =
     if x = 0 then true else is_odd (x - 1)
@@ -308,14 +308,14 @@ val is_even : int -> bool = <fun> val is_odd : int -> bool = <fun>
 
 (* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 23) ∗ all code *)
 ```
-OCaml需要区分非递归定义（用`let`）和递归定义（用`let rec`）主要是技术原因：类型推导算法需要知道何时一组函数定义是相互递归的，并且出于一些纯函数式语言中没有原因，如Haskell，这需要程序员自己显式标注。
+OCaml需要区分非递归定义（用`let`）和递归定义（用`let rec`）主要是技术原因：类型推导算法需要知道何时一组函数定义是交互递归的，并且出于一些纯函数式语言中没有原因，如Haskell，这需要程序员自己显式标注。
 
 但这个决策也有好处。一个原因是，递归（特别是交互递归）定义比非递归更难推理。所以如果在没有显式`rec`的地方，你就可以认为这个`let`绑定一定只能是基于之前的绑定，这一点是有意义的。
 
-另外，有一个单独的非递归形式也使得创建一个新的定义通过遮蔽来替代一个已存在的定义更为容易。
+另外，有一个单独的非递归形式也使得通过遮蔽来创建一个新的定义以替代一个已存在的定义更为容易。
 
 #### 前缀和中缀操作符
-目前。在例子中我们前缀和中缀形式的函数都用过了：
+目前。在例子中前缀和中缀形式的函数我们都用过了：
 ```ocaml
 # Int.max 3 4  (* prefix *);;
 - : int = 4
@@ -335,7 +335,7 @@ OCaml需要区分非递归定义（用`let`）和递归定义（用`let rec`）�
 ```
 第二个表达式中，我们通用偏特化`(+)`创建了一个将参数加3的函数。
 
-如果函数名中下面的标识符，就会被当成操作符，也包括完全由下面字符组成的标识符。
+如果函数名是下面的标识符，就会被当成操作符，也包括完全由多个下面字符组成的标识符。
 ```ocaml
 ! $ % & * + - . / : < = > ? @ ^ | ~
 
@@ -367,7 +367,7 @@ val ( *** ) : float -> float -> float = <fun>
 
 (* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 28) ∗ all code *)
 ```
-操作符的语法角色主是前一到两个字符决定的，鲜有例外。下表将不同的操作符和其它语法形式按优先级从高到低分组，并分别解释了其语法行为。我们用`!...`来表示以`～`开头的这类操作符。
+操作符的语法角色主是前一到两个字符决定的，鲜有例外。下表将不同的操作符和其它语法形式按优先级从高到低分组，并分别解释了其语法行为。我们用`!...`来表示以`!`开头的这类操作符。
 
 | Prefix                                           |Usage |
 | ------------------------------------------------ | ---- |
@@ -415,7 +415,7 @@ val ( |> ) : 'a -> ('a -> 'b) -> 'b = <fun>
 
 (* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 31) ∗ all code *)
 ```
-其作用开始并不明显：它只是接收一个值和一个函数，然后把函数应用到值上。尽管这个描述听起来平淡无奇，它却在序列化操作符时扮演重要角色，和UNIX管道神似。例如，考虑下面的代码，可以无重复地打印出你`PATH`中的元素。下面的`List.dedup`通过使用给定的比较函数排序来从一个列表中消除重复。
+乍一看其作用并不明显：它只是接收一个值和一个函数，然后把函数应用到值上。尽管这个描述听起来平淡无奇，它却在顺序操作时扮演重要角色，这和UNIX管道神似。例如，考虑下面的代码，可以无重复地打印出你`PATH`中的元素。下面的`List.dedup`通过使用给定的比较函数排序来从一个列表中消除重复。
 ```ocaml
 # let path = "/usr/bin:/usr/local/bin:/bin:/sbin";;
 val path : string = "/usr/bin:/usr/local/bin:/bin:/sbin"
@@ -447,8 +447,48 @@ val path : string = "/usr/bin:/usr/local/bin:/bin:/sbin"
 
 (* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 33) ∗ all code *)
 ```
-这里有一个很重要的方面就是偏特化应用。如，`List.iter`正常会接收两个参数：一个对列表的每一个元素都调用的函数
-#### Declaring functions with function
+这里有一个很重要的方面就是偏特化应用。如，`List.iter`正常会接收两个参数：一个是对列表的每一个元素都调用的函数，还有一个用以迭代的列表。我们可以用完整的参数调用`List.iter`：
+```ocaml
+# List.iter ~f:print_endline ["Two"; "lines"];;
+
+Two
+lines
+- : unit = ()
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 34) ∗ all code *)
+```
+或者。我们可以只传给它函数参数，这样就会得到一个打印字符串列表的函数。
+```ocaml
+# List.iter ~f:print_endline;;
+- : string list -> unit = <fun>
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 35) ∗ all code *)
+```
+后面这个形式就是我们在上面`|>`管道中使用的。
+
+注意`|>`只能以预定的方式工作，因为它是左结合的。让我们看看如果使用右结合操作符会发生什么，比如`(^>)`。
+```ocaml
+# let (^>) x f = f x;;
+val ( ^> ) : 'a -> ('a -> 'b) -> 'b = <fun>
+# Sys.getenv_exn "PATH"
+  ^> String.split ~on:':' path
+  ^> List.dedup ~compare:String.compare
+  ^> List.iter ~f:print_endline
+  ;;
+Characters 98-124:
+Error: This expression has type string list -> unit
+       but an expression was expected of type
+         (string list -> string list) -> 'a
+       Type string list is not compatible with type
+         string list -> string list 
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 36) ∗ all code *)
+```
+上面的类型错误乍一看挺迷惑人的。 事情是这样的，由于`^>`是右结合的，所以会试图把`List.dedup ~compare:String.compare`传给`List.iter ~f:print_endline`。但是`List.iter ~f:print_endline`需要一个字符串列表作为输入，而不是一个函数。
+
+除了类型错误，这个例子还强调了小心选择操作符的重要性，特别是结合性方面。
+
+#### 使用`function`声明函数
 
 #### Labeled arguments
 ##### Higher-order functions and labels
