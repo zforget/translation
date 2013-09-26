@@ -489,9 +489,120 @@ Error: This expression has type string list -> unit
 除了类型错误，这个例子还强调了小心选择操作符的重要性，特别是结合性方面。
 
 #### 使用`function`声明函数
+定义函数还有一个方法就是使用`function`关键字。和支持声明多参数（柯里化的）函数语法不同，`function`内建了模式匹配。例如：
+```ocaml
+# let some_or_zero = function
+     | Some x -> x
+     | None -> 0
+  ;;
+val some_or_zero : int option -> int = <fun>
+# List.map ~f:some_or_zero [Some 3; None; Some 4];;
+- : int list = [3; 0; 4]
 
-#### Labeled arguments
-##### Higher-order functions and labels
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 37) ∗ all code *)
+```
+这和使用`match`定义的普通函数是等价的。
+```ocaml
+# let some_or_zero num_opt =
+    match num_opt with
+    | Some x -> x
+    | None -> 0
+  ;;
+val some_or_zero : int option -> int = <fun>
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 38) ∗ all code *)
+```
+我们也可以把不同的函数声明风格组合在一起，下面的例子中，我们声明了一个有两个参数（柯里化）的函数，第二个参数使用模式匹配。
+```ocaml
+# let some_or_default default = function
+     | Some x -> x
+     | None -> default
+  ;;
+val some_or_default : 'a -> 'a option -> 'a = <fun>
+# some_or_default 3 (Some 5);;
+- : int = 5
+# List.map ~f:(some_or_default 100) [Some 3; None; Some 4];;
+- : int list = [3; 100; 4]
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 39) ∗ all code *)
+```
+再一次，使用偏特化创建了一个函数传给`List.map`。换句话说，`some_or_default 100`是通过只给`some_or_default`第一参数创建的函数。
+
+#### 标签参数
+到此为止，我们定义的函数都是通过位置指定参数的，即，参数要按顺序传给函数。OCaml也支持标签参数，允许你可以使用名称来标识参数。实际上，我们已经碰到过Core中一些使用标签参数的函数，如`List.map`。标签参数用一个波浪号前缀标注，并在需要标签的变量前使用一个标签（后面跟着一个分号）。下面是一个例子。
+```ocaml
+# let ratio ~num ~denom = float num /. float denom;;
+val ratio : num:int -> denom:int -> float = <fun>
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 40) ∗ all code *)
+```
+我们可以使用类似的约定提供一个标签化的实参，如你所见，这些参数顺序可以是任意的。
+```ocaml
+# ratio ~num:3 ~denom:10;;
+- : float = 0.3
+# ratio ~denom:10 ~num:3;;
+- : float = 0.3
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 41) ∗ all code *)
+```
+OCaml也支持 **标签双关（label punning）**，如果标签和和变量名同名，那么你就可以不用`:`及后面的部分了。实际上，上面在定义`ratio`时我们已经使用了标签双关。下面展示了如何在函数调用中使用双关。
+```ocaml
+# let num = 3 in
+let denom = 4 in
+ratio ~num ~denom;;
+- : float = 0.75
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 42) ∗ all code *)
+```
+标签参数在几种不同场景下有用：
+
+- 定义一个有许多参数的函数时。超出一定数量后，按名称记参数比按位置更容易。
+- 一个特定的参数只看类型意义不明确时。考虑一个创建哈希表的函数，其第一个参数是底层数组的初始大小，第二参数是一个布尔标志，表明当移除元素时数组是否会收缩。
+  ```ocaml
+  val create_hashtable : int -> bool -> ('a,'b) Hashtable.t
+
+  (* OCaml ∗ variables-and-functions/htable_sig1.ml ∗ all code *)
+  ```
+  用上面的签名难以预测这两个参数的含义，但如果标签参数，立刻就清楚了。
+  ```ocaml
+  val create_hashtable :
+    init_size:int -> allow_shrinking:bool -> ('a,'b) Hashtable.t
+  
+  (* OCaml ∗ variables-and-functions/htable_sig2.ml ∗ all code *)
+  ```
+  给布尔值选一个合适的标签名尤为重要，因为当值为真时到底是打开还是禁止一个特性经常会引起混淆。
+- 函数有多个可能互相混淆参数时。通常都是在这些参数类型相同时才可能这样。例如，考虑这个提取子字符串的函数。
+  ```ocaml
+  val substring: string -> int -> int -> string
+  
+  (* OCaml ∗ variables-and-functions/substring_sig1.ml ∗ all code *)
+  ```
+  这里的`int`分别是要提取的子串的开始位置和长度。我们可以使用标签来使签名更明确。
+  ```ocaml
+  val substring: string -> pos:int -> len:int -> string
+  
+  (* OCaml ∗ variables-and-functions/substring_sig2.ml ∗ all code *)
+  ```
+  这使得函数签名和使用`substring`的客户代码更易读，并且不容易无意间弄反位置和长度。
+- 当你需要函数参数传入时位置灵活时。看`List.iter`这样的函数，接收两个参数：一个函数，还有一个列表，在列表的每一个元素上调用该函数。一个常见的模式中只用一个函数参数来偏特化`List.iter`，就和下面这个本章之前的例子一样。
+  ```ocaml
+  #   String.split ~on:':' path
+    |> List.dedup ~compare:String.compare
+    |> List.iter ~f:print_endline
+    ;;
+  
+  /bin
+  /sbin
+  /usr/bin
+  /usr/local/bin
+  - : unit = ()
+  
+  (* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 43) ∗ all code *)
+  ```
+  这就要求我们把函数参数放在首位。在其它情况下，通常是为了代码更可读，你又想把函数参数放在后面。特别是，把一个多行函数作为参数传给另一个函数时，把它放在最后可读性是最好的。
+
+##### 高阶函数和标签
+
 
 #### Optional arguments
 ##### Explicit passing of an optional argument
