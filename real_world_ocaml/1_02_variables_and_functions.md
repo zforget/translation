@@ -526,7 +526,7 @@ val some_or_default : 'a -> 'a option -> 'a = <fun>
 
 (* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 39) ∗ all code *)
 ```
-再一次，使用偏特化创建了一个函数传给`List.map`。换句话说，`some_or_default 100`是通过只给`some_or_default`第一参数创建的函数。
+再一次，使用偏特化创建了一个函数传给`List.map`。换句话说，`some_or_default 100`是通过只给`some_or_default`第一个参数来创建的函数。
 
 #### 标签参数
 到此为止，我们定义的函数都是通过位置指定参数的，即，参数要按顺序传给函数。OCaml也支持标签参数，允许你可以使用名称来标识参数。实际上，我们已经碰到过Core中一些使用标签参数的函数，如`List.map`。标签参数用一个波浪号前缀标注，并在需要标签的变量前使用一个标签（后面跟着一个分号）。下面是一个例子。
@@ -563,7 +563,7 @@ ratio ~num ~denom;;
 
   (* OCaml ∗ variables-and-functions/htable_sig1.ml ∗ all code *)
   ```
-  用上面的签名难以预测这两个参数的含义，但如果标签参数，立刻就清楚了。
+  用上面的签名难以预测这两个参数的含义，但如果使用标签参数，立刻就清楚了。
   ```ocaml
   val create_hashtable :
     init_size:int -> allow_shrinking:bool -> ('a,'b) Hashtable.t
@@ -571,7 +571,7 @@ ratio ~num ~denom;;
   (* OCaml ∗ variables-and-functions/htable_sig2.ml ∗ all code *)
   ```
   给布尔值选一个合适的标签名尤为重要，因为当值为真时到底是打开还是禁止一个特性经常会引起混淆。
-- 函数有多个可能互相混淆参数时。通常都是在这些参数类型相同时才可能这样。例如，考虑这个提取子字符串的函数。
+- 函数有多个可能互相混淆的参数时。通常都是在这些参数类型相同时才可能这样。例如，考虑这个提取子字符串的函数。
   ```ocaml
   val substring: string -> int -> int -> string
   
@@ -602,9 +602,74 @@ ratio ~num ~denom;;
   这就要求我们把函数参数放在首位。在其它情况下，通常是为了代码更可读，你又想把函数参数放在后面。特别是，把一个多行函数作为参数传给另一个函数时，把它放在最后可读性是最好的。
 
 ##### 高阶函数和标签
+关于标签参数，有一点会出乎你的意料，就是尽管调用使用标签参数的函数时参数顺序没有影响，但是在高阶上下文中顺序却是有影响的，如，当把一个使用标签参数的函数传给另一个函数时。下面是一个例子。
+```ocaml
+# let apply_to_tuple f (first,second) = f ~first ~second;;
+val apply_to_tuple : (first:'a -> second:'b -> 'c) -> 'a * 'b -> 'c = <fun>
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 44) ∗ all code *)
+```
+这里`apply_to_tuple`的定义期待其第一个参数是一个有标签参数的函数，`first`和`second`，并且就是按这个顺序的。我们还可以另定义`apply_to_tuple`以改变标签参数的顺序。
+```ocaml
+# let apply_to_tuple_2 f (first,second) = f ~second ~first;;
+val apply_to_tuple_2 : (second:'a -> first:'b -> 'c) -> 'b * 'a -> 'c = <fun>
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 45) ∗ all code *)
+```
+这说明顺序是有影响的。特别是，如果我们定义一个不同顺序的函数：
+```ocaml
+# let divide ~first ~second = first / second;;
+val divide : first:int -> second:int -> int = <fun>
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 46) ∗ all code *)
+```
+就会发现我们不能将其传给`apply_to_tuple_2`。
+```ocaml
+# apply_to_tuple_2 divide (3,4);;
+Characters 17-23:
+Error: This expression has type first:int -> second:int -> int
+       but an expression was expected of type second:'a -> first:'b -> 'c
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 47) ∗ all code *)
+```
+但是它和之前的`apply_to_tuple`一起用却没有问题。
+```ocaml
+# let apply_to_tuple f (first,second) = f ~first ~second;;
+val apply_to_tuple : (first:'a -> second:'b -> 'c) -> 'a * 'b -> 'c = <fun>
+# apply_to_tuple divide (3,4);;
+- : int = 0
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 48) ∗ all code *)
+```
+结论就是，当作为参数传递一个标签化的函数时，你需要注意保持标签参数顺序的一致性。
 
+#### 可选参数
+可选参数就像一个调用者可提供也可不提供的标签参数。可选参数使用和标签参数一样的语法进行传递，并且，和标签参数一样，顺序可任意。
 
-#### Optional arguments
-##### Explicit passing of an optional argument
+下面的例子是一个字符串拼接函数，使用了一个可选的分隔符。此函数使用`^`操作符拼接一对字符串。
+```ocaml
+# let concat ?sep x y =
+     let sep = match sep with None -> "" | Some x -> x in
+     x ^ sep ^ y
+  ;;
+val concat : ?sep:string -> string -> string -> string = <fun>
+# concat "foo" "bar"             (* without the optional argument *);;
+- : string = "foobar"
+# concat ~sep:":" "foo" "bar"    (* with the optional argument    *);;
+- : string = "foo:bar"
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 49) ∗ all code *)
+```
+这里，在函数定义中使用`?`来把`sep`标记成可选的。调用者可以给`sep`传递一个``string`型的值，在函数内部，`sep`被看成一个`string option`，当调用者没有提供`sep`时值为`None`。
+
+上在的例子中，当什么都没有提供时，还需要一些代码来选择默认分隔符。这种情况足够通用，以致于有一种专门提供默认值的语法，使我们可以把代码写得更简捷。
+```ocaml
+# let concat ?(sep="") x y = x ^ sep ^ y ;;
+val concat : ?sep:string -> string -> string -> string = <fun>
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 50) ∗ all code *)
+```
+可选参数非常有用，但也容易被滥用。可选参数的优点在于允许你写出有多个参数的函数，而这些参数使用者大数时候可以忽略，只在特别需要使用这些选项时才会去关心它们。它们也允许你可以在无需改变已有代码的情况下扩展一个API。
+
+缺点是调用者可能意识不到还有另外的选择，所以可能不知不觉地（并且是错误地）使用默认行为。只有在省略参数带来的简捷性大于相应的明确性损失时，可选参数才有意义。
+
+这意味着极少用到的函数不应该使用可选参数。一个好的经验法则是避免在模块内部函数（即没有包含在模块接口或mli文件中的函数）中使用可选参数。我们会在[第4章文件、模块和程序](#文件模块和程序)中学习mli文件。
+
+##### 显式传递一个可选参数
 ##### Inference of labeled and optional arguments
 ##### Optional arguments and partial application
