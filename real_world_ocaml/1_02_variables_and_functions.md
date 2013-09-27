@@ -671,5 +671,172 @@ val concat : ?sep:string -> string -> string -> string = <fun>
 这意味着极少用到的函数不应该使用可选参数。一个好的经验法则是避免在模块内部函数（即没有包含在模块接口或mli文件中的函数）中使用可选参数。我们会在[第4章文件、模块和程序](#文件模块和程序)中学习mli文件。
 
 ##### 显式传递一个可选参数
-##### Inference of labeled and optional arguments
-##### Optional arguments and partial application
+在后台，一个使用可选参数的函数，当调用者没有提供此参数时，函数会接收到一个`None`，否则会接收到`Some`。但是`Some`和`None`都不是调用者显式传递的。
+
+但有时候你确实想传递`Some`或`None`。OCaml允许你这样做，只要使用`?`代替`~`来标注参数即可。因此，下面两种给`concat`传递`sep`参数的方法是等价的。
+```ocaml
+# concat ~sep:":" "foo" "bar" (* provide the optional argument *);;
+- : string = "foo:bar"
+# concat ?sep:(Some ":") "foo" "bar" (* pass an explicit [Some] *);;
+- : string = "foo:bar"
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 51) ∗ all code *)
+```
+下面两种不指定`sep`调用`concat`的方法也是等价的。
+```ocaml
+# concat "foo" "bar" (* don't provide the optional argument *);;
+- : string = "foobar"
+# concat ?sep:None "foo" "bar" (* explicitly pass `None` *);;
+- : string = "foobar"
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 52) ∗ all code *)
+```
+这种方式的一个使用场景是，你要定义一个包装函数，这个函数需要模拟被包装的函数的可选参数。例如，想象一下我们要创建一个名为`uppercase_concat`的函数，它和`concat`功能一样只是把第一个字符串变成大写字母。我们可以像这样写。
+```ocaml
+# let uppercase_concat ?(sep="") a b = concat ~sep (String.uppercase a) b ;;
+val uppercase_concat : ?sep:string -> string -> string -> string = <fun>
+# uppercase_concat "foo" "bar";;
+- : string = "FOObar"
+# uppercase_concat "foo" "bar" ~sep:":";;
+- : string = "FOO:bar"
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 53) ∗ all code *)
+```
+按这种写法，我们又强制指定了默认分隔。所以，之后再改变`concat`默认值的时候，需要记着同时修改`uppercase_concat`来与之匹配。
+
+实际上，我们可以使用`?`语法直接把`uppercase_concat`的可选参数传给`concat`。
+```ocaml
+# let uppercase_concat ?sep a b = concat ?sep (String.uppercase a) b ;;
+val uppercase_concat : ?sep:string -> string -> string -> string = <fun>
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 54) ∗ all code *)
+```
+现在，如果有人不指定`sep`调用`uppercase_concat`时，这时显式的`None`会传递给`concat`，从而由`concat`来决定默认值。
+
+##### 标签参数和可选参数的类型推导
+关于标签和可选参数有一个微妙的方面就是类型系统是如何推导它们的。考虑下面这个例子，用以计算一个有两个实数参数的函数的数值导数。它接收一个`delta`参数来确定计算导数的窗口大小，值`x`和`y`用以给出计算导数的点，还有一个要计算导数的函数`f`。函数`f`本身接收两个标签参数`x`和`y`。注意你可以在变量名中使用撇号，所以`x'`和`y'`只是普通变量。
+```ocaml
+# let numeric_deriv ~delta ~x ~y ~f =
+    let x' = x +. delta in
+    let y' = y +. delta in
+    let base = f ~x ~y in
+    let dx = (f ~x:x' ~y -. base) /. delta in
+    let dy = (f ~x ~y:y' -. base) /. delta in
+    (dx,dy)
+  ;;
+val numeric_deriv : delta:float -> x:float -> y:float -> f:(x:float -> y:float -> float) -> float * float = <fun>
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 55) ∗ all code *)
+```
+理论上，应该如何选择`f`的函数顺序并不明显。因为标签参数可以以任意顺序传递，看起来其类型除了可以是`x:float -> y:float -> float`，也可以是`y:float -> x:float -> float`。
+
+更糟的是，如果`f`有可选参数而非标签参数也可以保持完美的一致，这可以使`numeric_deriv`的类型签名变成下面这样。
+```ocaml
+val numeric_deriv :
+  delta:float ->
+  x:float -> y:float -> f:(?x:float -> y:float -> float) -> float * float
+
+(* OCaml ∗ variables-and-functions/numerical_deriv_alt_sig.mli ∗ all code *)
+```
+由于存在多种可能，OCaml需要一些启示来做选择。编译器使用的启示是：标签参数比可选参数优先，参数顺序遵从源代码中出现的顺序。
+
+注意这些启发方法可能会导致随源代码的不同而呈现不同的类型。下面这个版本的`numeric_deriv`因为调用`f`的方式不同导致了不同的参数类型。
+```ocaml
+# let numeric_deriv ~delta ~x ~y ~f =
+    let x' = x +. delta in
+    let y' = y +. delta in
+    let base = f ~x ~y in
+    let dx = (f ~y ~x:x' -. base) /. delta in
+    let dy = (f ~x ~y:y' -. base) /. delta in
+    (dx,dy)
+  ;;
+Characters 130-131:
+Error: This function is applied to arguments in an order different from other calls. This is only allowed when the real type is known.
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 56) ∗ all code *)
+```
+就像错误信息中提示的那样，我们可以提供明确的类型信息，以使OCaml可以接受`f`以不同的参数顺序调用。因此，下面的代码会编译无误，因为给出了`f`的类型注解。
+```ocaml
+# let numeric_deriv ~delta ~x ~y ~(f: x:float -> y:float -> float) =
+    let x' = x +. delta in
+    let y' = y +. delta in
+    let base = f ~x ~y in
+    let dx = (f ~y ~x:x' -. base) /. delta in
+    let dy = (f ~x ~y:y' -. base) /. delta in
+    (dx,dy)
+  ;;
+val numeric_deriv : delta:float -> x:float -> y:float -> f:(x:float -> y:float -> float) -> float * float = <fun>
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 57) ∗ all code *)
+```
+##### 可选参数和偏特化
+可选参数在遇上偏特化应用时比较麻烦。我当然可以只提供可选参数来做偏特化：
+```ocaml
+# let colon_concat = concat ~sep:":";;
+val colon_concat : string -> string -> string = <fun>
+# colon_concat "a" "b";;
+- : string = "a:b"
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 58) ∗ all code *)
+```
+但当我们只提供第一个参数时会发生什么呢？
+```ocaml
+# let prepend_pound = concat "# ";;
+val prepend_pound : string -> string = <fun>
+# prepend_pound "a BASH comment";;
+- : string = "# a BASH comment"
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 59) ∗ all code *)
+```
+可选参数`?sep`现在已经消失了，或者说是被 **消除（erased）**了。实际上，现在你再试图传递一个可选参数会被拒绝。
+```ocaml
+# prepend_pound "a BASH comment" ~sep:":";;
+Characters -1-13:
+Error: This function has type string -> string
+       It is applied to too many arguments; maybe you forgot a `;'.
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 60) ∗ all code *)
+```
+那么OCaml什么时候会去掉一个可选参数呢？
+
+规则是：一旦可选参数后面的第一个位置参数（就是除标签和可选参数以外的参数）传入，这个可选参数就被消除了。这就解释了上面`prepend_pound`的行为。但是如果我们把可选参数作为`concat`的第二个参数：
+```ocaml
+# let concat x ?(sep="") y = x ^ sep ^ y ;;
+val concat : string -> ?sep:string -> string -> string = <fun>
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 61) ∗ all code *)
+```
+那么第一个参数的偏特化应用就不会导致可选参数被消除了。
+```ocaml
+# let prepend_pound = concat "# ";;
+val prepend_pound : ?sep:string -> string -> string = <fun>
+# prepend_pound "a BASH comment";;
+- : string = "# a BASH comment"
+# prepend_pound "a BASH comment" ~sep:"--- ";;
+- : string = "# --- a BASH comment"
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 62) ∗ all code *)
+```
+然而，如果所有的参数都一次给定，那么在所有参数都传入之后才会消除可选参数。这就为我们保留了可以在任何位置传入可选参数的能力。因此，我们才可以这样写：
+```ocaml
+# concat "a" "b" ~sep:"=";;
+- : string = "a=b"
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 63) ∗ all code *)
+```
+后面没有任何位置参数的可选参数是无法消除的，这时编译器会给出警告。
+```ocaml
+# let concat x y ?(sep="") = x ^ sep ^ y ;;
+Characters 15-38:
+Warning 16: this optional argument cannot be erased.val concat : string -> string -> ?sep:string -> string = <fun>
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 64) ∗ all code *)
+```
+实际上，当我们只提供两个位置参数时，`sep`参数并没有被消除，所以会返回一个参数为`sep`的函数。
+```ocaml
+# concat "a" "b";;
+- : ?sep:string -> string = <fun>
+
+(* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 65) ∗ all code *)
+```
+可以看到，OCaml中的标签参数和可选参数并不是没有复杂性代价的。但不要让这些复杂性掩盖了这些特性的实用性。标签参数和可选参数是非常有效的工具，可以让你的API更方便使用并且更安全，付出努力学习有效使用它们是非常值得的。
