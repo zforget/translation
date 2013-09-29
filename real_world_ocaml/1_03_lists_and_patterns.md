@@ -236,7 +236,29 @@ Here is an example of a value that is not matched:
 即使在这么简单的例子中，不完整检查也是非常有用的。但是在[第6章变量](#变量)中，碰到更复杂的例子时，它们会变得更有价值，特别是涉及用户自定义类型时。除了捕捉直接错误，它们还可以作为一种重构工具，指导你找到需要调整的位置，以使你的代码可以应对类型的变化。
 
 ### 高效使用`List`模块
+现在我们已经使用模式匹配和递归函数写了大量列表处理代码。但在现实中，你通常最好应该使用`List`模块，它里面有许多可重用的函数，它们抽象出一些列表计算的通用模式。
 
+让我们通过一个具体例子来看看实际应用。我们将要写一个`render_table`函数，给定一个列标题列表和一个行列表，把它们打印到一个有良好格式化的文本表中，如下所示。
+```ocaml
+# printf "%s\n"
+   (render_table
+     ["language";"architect";"first release"]
+     [ ["Lisp" ;"John McCarthy" ;"1958"] ;
+       ["C"    ;"Dennis Ritchie";"1969"] ;
+       ["ML"   ;"Robin Milner"  ;"1973"] ;
+       ["OCaml";"Xavier Leroy"  ;"1996"] ;
+     ]);;
+
+| language | architect      | first release |
+|----------+----------------+---------------|
+| Lisp     | John McCarthy  | 1958          |
+| C        | Dennis Ritchie | 1969          |
+| ML       | Robin Milner   | 1973          |
+| OCaml    | Xavier Leroy   | 1996          |
+- : unit = ()
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 69) ∗ all code *)
+```
 #### More useful list functions
 ##### Combining list elements with List.reduce
 ##### Filtering with List.filter and List.filter_map
