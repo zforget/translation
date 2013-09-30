@@ -259,6 +259,81 @@ Here is an example of a value that is not matched:
 
 (* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 69) ∗ all code *)
 ```
+第一步是要写一个计算最大列宽的函数。我们可以把标题以及每行数据的列表转换成一个表示长度的整数列表，然后取这些列表的最大元素即可。直接写这些代码很繁杂，但是使用`List`模块中的`map`、`map2_exn`和`fold`这三个函数我们可以非常简捷地完成任务。
+
+`List.map`解释起来最简单。它接收一个列表和一个函数参数，用函数转换列表的每个元素，并返回一个由转换后的值构成新列表。因此我们可以这样写：
+```ocaml
+# List.map ~f:String.length ["Hello"; "World!"];;
+- : int list = [5; 6]
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 14) ∗ all code *)
+```
+`List.map2_exn`和`List.map`类似，但它接收两个列表和一个函数来组合它们。因此，代码可以这样：
+```ocaml
+# List.map2_exn ~f:Int.max [1;2;3] [3;2;1];;
+- : int list = [3; 2; 3]
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 15) ∗ all code *)
+```
+有一个`_exn`后缀是因为这个函数会在两个列表长度不同时抛出异常。
+```ocaml
+# List.map2_exn ~f:Int.max [1;2;3] [3;2;1;0];;
+Exception: (Invalid_argument "length mismatch in rev_map2_exn: 3 <> 4 ").
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 16) ∗ all code *)
+```
+`List.fold`是这三中最复杂的，有三个参数：一个要处理的列表，一个累加器初始值和一个根据列表元素来更新累加器的函数。`List.fold`从左至右遍历列表，在每一步时更新累加器并在结束时返回累加器最终的值。看此函数的类型签名你就可以略知一二了。
+```ocaml
+# List.fold;;
+- : 'a list -> init:'accum -> f:('accum -> 'a -> 'accum) -> 'accum = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 17) ∗ all code *)
+```
+我们可以用`List.fold`来完成简单如累加一个列表这样的工作。
+```ocaml
+# List.fold ~init:0 ~f:(+) [1;2;3;4];;
+- : int = 10
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 18) ∗ all code *)
+```
+我个例子特别简单是因为累加器和列表元素是相同的。但`fold`中并没有个限制。例如我们可以使用`fold`来反转一个列表，这种情况下累加器本身就是一个列表。
+```ocaml
+# List.fold ~init:[] ~f:(fun list x -> x :: list) [1;2;3;4];;
+- : int list = [4; 3; 2; 1]
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 19) ∗ all code *)
+```
+现在让我们用这三个函数一起来计算最大行宽。
+```ocaml
+# let max_widths header rows =
+    let lengths l = List.map ~f:String.length l in
+    List.fold rows
+      ~init:(lengths header)
+      ~f:(fun acc row ->
+        List.map2_exn ~f:Int.max acc (lengths row))
+  ;;
+val max_widths : string list -> string list list -> int list = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 20) ∗ all code *)
+```
+我们使用`List.map`定义了一个`lengths`函数，用以把一个字符串列表转换成一个对应元素长度的整数列表。然后用`List.fold`来迭代`rows`，使用`map2_exn`来取累加器和每一行字符串长度的最大值，累加器初始值是标题行的长度。
+
+现在我们知道了如何计算列宽，我们就可以之代码来生成分隔标题行和文本表中其余行的分隔符。我们会使用根据列长`String.make`来生成合适长度的破折号字符串。然后使用`String.concat`把它们组合起来，此函数用一个可选的分隔字符串来拼接字符串，还有`^`，是一个两两拼接字符串的函数，用以在外面添加分隔符。
+```ocaml
+# let render_separator widths =
+    let pieces = List.map widths
+      ~f:(fun w -> String.make (w + 2) '-')
+    in
+    "|" ^ String.concat ~sep:"+" pieces ^ "|"
+  ;;
+val render_separator : int list -> string = <fun>
+# render_separator [3;6;2];;
+- : string = "|-----+--------+----|"
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 21) ∗ all code *)
+```
+注意破折号行比给定的宽度多两个字符，以在表中每一项周围提供一些空格。
+
 #### More useful list functions
 ##### Combining list elements with List.reduce
 ##### Filtering with List.filter and List.filter_map
