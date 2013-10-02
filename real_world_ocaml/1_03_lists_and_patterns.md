@@ -334,6 +334,24 @@ val render_separator : int list -> string = <fun>
 ```
 注意破折号行比给定的宽度多两个字符，以在表中每一项周围提供一些空格。
 
+> **`String.concat`和`^`的性能**
+>
+> 上面我们使用了两种不同的字符串拼接方法，作用于字符串列表的`String.concat`，和两两拼接的`^`操作符。拼接许多字符串时应该尽量避免使用`^`，因为每一次调用它都会分配一个新的字符串。因此，下面的代码会分配长度分别为2、3、4、5、6和7的字符串
+> ```ocaml
+> # let s = "." ^ "."  ^ "."  ^ "."  ^ "."  ^ "."  ^ ".";;
+> val s : string = "......."
+>
+> (* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 22) ∗ all code *)
+> ```
+> 但下面的代码只会分配一个长度为7的字符串和一个有7个元素的列表。
+> ```ocaml
+> # let s = String.concat [".";".";".";".";".";".";"."];;
+> val s : string = "......."
+> 
+> (* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 23) ∗ all code *)
+> ```
+>这么小字符串不会产生多大影响，但是组合巨大的字符串时，这会产生严重的性能问题。
+
 #### More useful list functions
 ##### Combining list elements with List.reduce
 ##### Filtering with List.filter and List.filter_map
