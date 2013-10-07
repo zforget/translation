@@ -352,12 +352,311 @@ val render_separator : int list -> string = <fun>
 > ```
 >这么小字符串不会产生多大影响，但是组合巨大的字符串时，这会产生严重的性能问题。
 
-#### More useful list functions
-##### Combining list elements with List.reduce
-##### Filtering with List.filter and List.filter_map
-##### Partitioning with List.partition_tf
-##### Combining lists
+现在我需要写代码来呈现一行数据。我们先写一个`pad`函数来把一个字符串拉长到指定长度，包括两边各一个空格。
+```ocaml
+# let pad s length =
+    " " ^ s ^ String.make (length - String.length s + 1) ' '
+  ;;
+val pad : string -> int -> string = <fun>
+# pad "hello" 10;;
+- : string = " Hello      "
 
-### Tail recursion
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 24) ∗ all code *)
+```
+我们可以把填充后的字符串合并起来呈现一行数据。我们再一次使用了`List.map2_exn`来结合一行数据的列表和其对应宽度的列表。
+```ocaml
+# let render_row row widths =
+    let padded = List.map2_exn row widths ~f:pad in
+    "|" ^ String.concat ~sep:"|" padded ^ "|"
+  ;;
+val render_row : string list -> int list -> string = <fun>
+# render_row ["Hello";"World"] [10;15];;
+- : string = "| Hello      | World           |"
 
-### Terser and faster patterns
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 25) ∗ all code *)
+```
+现在我可以把所有这些都用在一个函数中来呈现一个表。
+```ocaml
+# let render_table header rows =
+    let widths = max_widths header rows in
+    String.concat ~sep:"\n"
+      (render_row header widths
+       :: render_separator widths
+       :: List.map rows ~f:(fun row -> render_row row widths)
+      )
+  ;;
+val render_table : string list -> string list list -> string = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 26) ∗ all code *)
+```
+#### 更多有用的列表函数
+上面的例子只涉及了`List`中的三个函数。我们不能覆盖所有接口（你可以去查看[在线文档](http://realworldocaml.org/doc)），但还有几个函数很重要，值得在这里提一下。
+
+##### 用`List.reduce`合并列表元素
+我们上面描述的`List.fold`是一个非常通用也非常强大的函数。然而有时，你会需要更简单也更容易使用的接口。`List.reduce`就是其中之一，它本质上是一个特殊版本的`List.fold`，不需要显式的初始值，其累加器要消费并生产和列表元素相同类型的值。
+
+这是其类型签名：
+```ocaml
+# List.reduce;;
+- : 'a list -> f:('a -> 'a -> 'a) -> 'a option = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 27) ∗ all code *)
+```
+`reduce`返回一个`option`值，当输入列表为空时返回`None`。
+
+现在我们可以看看`reduce`的应用。
+```ocaml
+# List.reduce ~f:(+) [1;2;3;4;5];;
+- : int option = Some 15
+# List.reduce ~f:(+) [];;
+- : int option = None
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 28) ∗ all code *)
+```
+##### 使用`List.filter`和`List.filter_map`过滤列表
+处理列表时，通常需要将注意力限定在列表特定的子集上。`List.filter`就一种方法。
+```ocaml
+# List.filter ~f:(fun x -> x mod 2 = 0) [1;2;3;4;5];;
+- : int list = [2; 4]
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 29) ∗ all code *)
+```
+注意上面的`mod`是一个中缀操作符，在[第2章变量和函数](#变量和函数)中有描述。
+
+有时，你会相在一个操作中同时进行遍历和过滤操作。此时，你需要`List.filter_map`。传给`List.filter_map`的函数返回一个`option`值，`List.filter_map`会丢弃所有返回`None`的元素。
+
+这里有一个例子。下面的表达式用以处理一个当前目录中文件扩展名的列表，并将其传给`List.dedup`来去重。注意此例中也使用了其它模块的函数，包括`Sys.ls_dir`，用以取目录列表，以及`String.rsplit2`以最右边出现的给定字符来分割字符串。
+```ocaml
+# List.filter_map (Sys.ls_dir ".") ~f:(fun fname ->
+    match String.rsplit2 ~on:'.' fname with
+    | None  | Some ("",_) -> None
+    | Some (_,ext) ->
+      Some ext)
+  |> List.dedup
+  ;;
+- : string list = ["ascii"; "ml"; "mli"; "topscript"]
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 30) ∗ all code *)
+```
+上面也是一个或模式的例子，或模式允许在一个大模式中使用多个子模式。这里，`None | Some ("",_)`就是一个或模式。后面我们会看到，或模式可以在一个更大的模式中任意嵌套。
+
+##### 使用`List.partition_tf`区分列表元素
+另一个和过滤很像的有用操作符中分割。函数`List.partition_tf`以一个列表和一个函数为参数，函数对每一个列表元素计算出一个布尔值，`List.partition_tf`返回两个列表。名字中的`tf`提示用户，`true`的元素在返回的第一个列表中，`false`的元素在第二个中。下面是一个例子。
+```ocaml
+# let is_ocaml_source s =
+    match String.rsplit2 s ~on:'.' with
+    | Some (_,("ml"|"mli")) -> true
+    | _ -> false
+  ;;
+val is_ocaml_source : string -> bool = <fun>
+# let (ml_files,other_files) =
+    List.partition_tf (Sys.ls_dir ".")  ~f:is_ocaml_source;;
+val ml_files : string list = ["example.mli"; "example.ml"]
+val other_files : string list = ["main.topscript"; "lists_layout.ascii"]
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 31) ∗ all code *)
+```
+
+##### 组合列表
+另一个很常见的操作就是列表的拼接。`List`模块提供了几种不的方式在拼接列表。首先是`List.append`，用以拼接一对列表。
+```ocaml
+# List.append [1;2;3] [4;5;6];;
+- : int list = [1; 2; 3; 4; 5; 6]
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 32) ∗ all code *)
+```
+还有一个`@`操作符，和`List.append`等价。
+```ocaml
+# [1;2;3] @ [4;5;6];;
+- : int list = [1; 2; 3; 4; 5; 6]
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 33) ∗ all code *)
+```
+此外还有`List.concat`，用以拼接一个列表中的所有列表。
+```ocaml
+# List.concat [[1;2];[3;4;5];[6];[]];;
+- : int list = [1; 2; 3; 4; 5; 6]
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 34) ∗ all code *)
+```
+下面的例子使用`List.concat`和`List.map`来递归列举一个目录树。
+```ocaml
+# let rec ls_rec s =
+    if Sys.is_file_exn ~follow_symlinks:true s
+    then [s]
+    else
+      Sys.ls_dir s
+      |> List.map ~f:(fun sub -> ls_rec (s ^/ sub))
+      |> List.concat
+  ;;
+val ls_rec : string -> string list = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 35) ∗ all code *)
+```
+注意`^/`是`Core`提供的一个中缀操作符，用以向一个表示路径的字符串上添加一个新元素。和`Core`的`Filename.concat`等价。
+
+上面`List.map`和`List.concat`的组合使用非常常用，所有`List.concat_map`函数把这两个函数合二为一，是一个高效的操作符。
+```ocmal
+# let rec ls_rec s =
+    if Sys.is_file_exn ~follow_symlinks:true s
+    then [s]
+    else
+      Sys.ls_dir s
+      |> List.concat_map ~f:(fun sub -> ls_rec (s ^/ sub))
+  ;;
+val ls_rec : string -> string list = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 36) ∗ all code *)
+```
+
+### 尾递归
+计算一个OCaml列表长度的唯一方法是从头数到尾。所以，计算一个列表长度和列表的大小成线性关系。下面是一个干这个的简单函数。
+```ocaml
+# let rec length = function
+    | [] -> 0
+    | _ :: tl -> 1 + length tl
+  ;;
+val length : 'a list -> int = <fun>
+# length [1;2;3];;
+- : int = 3
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 37) ∗ all code *)
+```
+看起来很简单，但我们会发现这个实现在巨大的列表上会有问题，如下所示：
+```ocaml
+# let make_list n = List.init n ~f:(fun x -> x);;
+val make_list : int -> int list = <fun>
+# length (make_list 10);;
+- : int = 10
+# length (make_list 10_000_000);;
+Stack overflow during evaluation (looping recursion?).
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 38) ∗ all code *)
+```
+上面的例子使用`List.init`来创建列表，以一个整数`n`和一个函数`f`为函数，创建一个长度为`n`的列表，每个元素的数据就是在索引值上调用`f`的结果。
+
+要弄清楚上面的例子错在哪里，你还需要知道多一点函数调用是如何工作的。典型的一个函数调用需要一些空间来保存相关的信息，如传给函数的参数，或是函数完成时需要继续执行的位置。为了允许嵌套函数，这些信息通常都组织在栈上，每个嵌套函数都有一个新的栈结构（stack frame）与之对应，在函数结束时会释放这个结构。
+
+这就是我们调用`length`的问题所在：试图分配一千万个栈结构，这耗尽了栈空间。幸运的时，这个问题有解。看下面的另一个实现。
+```ocaml
+# let rec length_plus_n l n =
+    match l with
+    | [] -> n
+    | _ :: tl -> length_plus_n tl (n + 1)
+  ;;
+val length_plus_n : 'a list -> int -> int = <fun>
+# let length l = length_plus_n l 0 ;;
+val length : 'a list -> int = <fun>
+# length [1;2;3;4];;
+- : int = 4
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 39) ∗ all code *)
+```
+这个实现依赖一个帮助函数`length_plus_n`，它计算一个给定列表的长度加上给定的`n`。实际上，`n`起到了累加器的作用，一步步构造最终结果。因此，我们就可以顺着做加法，而不必像`length`的第一个实现那样去展开嵌套函数的调用。
+
+这种方法的优点是`length_plus_n`中的递归调用是一个 **尾调用**。稍后我们会更准确地解释什么是尾调用，但一个非常重要的原因是尾调用不需要分配新的栈结构，因为可以使用一种称为 **尾调用优化**的技术。如果一个函数的所有递归调用都是尾调用，它就是 **尾递归**的。`length_plus_n`是尾递归的，因此，`length`可以接收一个长列表而不会撑爆堆栈。
+```ocaml
+# length (make_list 10_000_000);;
+- : int = 10000000
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 40) ∗ all code *)
+```
+那么尾调用到底是什么呢？让我们思考一下一个函数（调用者）对另一个函数（被调用者）的调用。对于被调用者的返回值，如果调用者除了将其直接返回没有其它任何操作，这个调用就是一个尾调用。尾调用优化之所以可行，是因为当调用者进行一个尾调用时，调用者栈结构就不会再使用了，所以你也就没有必要保存它了。因此，编译器可以复用调用者的栈结构，而不必为被调用者分配一个新的。
+
+尾递归在许多情况下都很重要，而不仅限于列表。在处理像二叉树这样树的深度是你数据大小的对数时，使用普通递归（非尾递归）是很合理的。但是处理那些嵌套调用的深度和你的数据大小相当时，应该使用尾递归。
+
+### 更简洁、更快的模式
+现在我们已经知道了列表和模式是如何工作的，让我们考虑一下我们可以改进[“递归列表函数”一节](#递归列表函数)中的一个例子：函数`destutter`，用以消除一个列表中的连续重复。下面是之前的实现。
+```ocaml
+# let rec destutter list =
+    match list with
+    | [] -> []
+    | [hd] -> [hd]
+    | hd :: hd' :: tl ->
+      if hd = hd' then destutter (hd' :: tl)
+      else hd :: destutter (hd' :: tl)
+  ;;
+val destutter : 'a list -> 'a list = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 41) ∗ all code *)
+```
+下面我们想一些办法使这段代码更简捷同时也更高效。
+
+首先让我们考虑效率。上面`destutter`的一个问题是在有些情况下会在箭头右边重复创建左边已经存在的值。因此，模式`[hd] -> [hd]`分配了一个新的列表元素，但实际上，它应该仅返回匹配的列表即可。使用`as`模式我们可以减少这种分配，`as`让我们可以给和一个模式或子模式匹配的东西命名。同时我们使用`function`关键字来替代显式的`match`。
+```ocaml
+# let rec destutter = function
+    | [] as l -> l
+    | [_] as l -> l
+    | hd :: (hd' :: _ as tl) ->
+      if hd = hd' then destutter tl
+      else hd :: destutter tl
+  ;;
+val destutter : 'a list -> 'a list = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 42) ∗ all code *)
+```
+我们可以更进一步，使用或模式来组合前两个分支。
+```ocaml
+# let rec destutter = function
+    | [] | [_] as l -> l
+    | hd :: (hd' :: _ as tl) ->
+      if hd = hd' then destutter tl
+      else hd :: destutter tl
+  ;;
+val destutter : 'a list -> 'a list = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 43) ∗ all code *)
+```
+使用`when`子句我们可以使代码更简洁。`when`子句允许在一个模式上以任意OCaml表达式的形式添加额外的先决条件。现在，我们使用它来包含前两个元素是否相等的检查。
+```ocaml
+# let rec destutter = function
+    | [] | [_] as l -> l
+    | hd :: (hd' :: _ as tl) when hd = hd' -> destutter tl
+    | hd :: tl -> hd :: destutter tl
+  ;;
+val destutter : 'a list -> 'a list = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 44) ∗ all code *)
+```
+#### 多态比较
+上面`destutter`的例子中，我们使用了OCaml的一个特性，使我们可以用`=`操作符来测试任何两个类型值是否相等。因此，我们可以这样写：
+```ocaml
+# 3 = 4;;
+- : bool = false
+# [3;4;5] = [3;4;5];;
+- : bool = true
+# [Some 3; None] = [None; Some 3];;
+- : bool = false
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 45) ∗ all code *)
+```
+实际上，当我们查看等于操作符的类型时，就可以看到它是多态的：
+```ocaml
+# (=);;
+- : 'a -> 'a -> bool = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 46) ∗ all code *)
+```
+实际上OCaml自带了一整族的多态操作符，包括标准的中缀操作符`<`、`>=`等，还有`compare`函数，在第一个操作数小于、相等、大于第二个操作数时分别返回`-1`、`0`或`1`。
+
+你可能想知道如果OCaml没有自带你如果能自己创建这样的函数。结论是你 **不能**自己创建这样的函数。OCaml的多态比较函数实际上是在进行时底层内建的。这些比较的多态性是建立在几乎忽略所有被比较值的类型信息的基础之上的，只关注值的结构的内存分布。
+
+多态比较是有一些限制的。比如，碰到函数值就会失败。
+```ocaml
+# (fun x -> x + 1) = (fun x -> x + 1);;
+Exception: (Invalid_argument "equal: functional value").
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 47) ∗ all code *)
+```
+类似的，在作用于OCaml堆以外的值时也会失败，如来自C语言绑定的值。但对于其它值，其都能很有地工作。
+
+对于简单的原子类型，多态比较的语义如你所愿：对于浮点数和整数，多态比较就是相关的数值比较函数。对于字符串，就是字典比较。
+
+然而，多态比较的这种类型无关有时会成为问题，特别是当你想施加自己的相等或顺序概念时。在[第13章映射表和哈希表](#映射表和哈希表)中，我们还会进一步讨论这个话题，以及多态比较的其它缺点。
+
+注意`when`子句也是有负面作用的。模式匹配相关的静态检查依赖于其模式在其表达方面是受限的。一旦给模式加入了可以附带任意表达式的能力，就会同时丢失某些特性。特别是编译器检查匹配是否完整或分支是否多余的能力会受影响。
+
+
+
+
+
