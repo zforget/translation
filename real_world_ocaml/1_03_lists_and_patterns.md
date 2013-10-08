@@ -656,6 +656,77 @@ Exception: (Invalid_argument "equal: functional value").
 
 注意`when`子句也是有负面作用的。模式匹配相关的静态检查依赖于其模式在表达方面是受限的。一旦给模式加入了可以附带任意表达式的能力，就会同时丢失某些特性。特别是编译器检查匹配是否完整或分支是否多余的能力会受影响。
 
+来看下面这个函数，接收一个`option`值的列表，返回其中值为`Some`的元素数。因为这个实现使用了`when`子句，所以编译器无法确定代码的匹配是完整的。
+```ocaml
+# let rec count_some list =
+    match list with
+    | [] -> 0
+    | x :: tl when Option.is_none x -> count_some tl
+    | x :: tl when Option.is_some x -> 1 + count_some tl
+  ;;
+
+Characters 30-169:
+Warning 8: this pattern-matching is not exhaustive.
+Here is an example of a value that is not matched:
+_::_
+(However, some guarded clause may match this value.)val count_some : 'a option list -> int = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 48) ∗ all code *)
+```
+尽管有警告，函数依然可以正常工作。
+```ocaml
+# count_some [Some 3; None; Some 4];;
+- : int = 2
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 49) ∗ all code *)
+```
+如果我们加一个不使用`when`子句的分支，编译器就不会报怨了，也不会警告有冗余。
+```ocaml
+# let rec count_some list =
+    match list with
+    | [] -> 0
+    | x :: tl when Option.is_none x -> count_some tl
+    | x :: tl when Option.is_some x -> 1 + count_some tl
+    | x :: tl -> -1 (* unreachable *)
+  ;;
+val count_some : 'a option list -> int = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 50) ∗ all code *)
+```
+可能更好的方法是简单把第二个`when`子句去掉即可。
+```ocaml
+# let rec count_some list =
+    match list with
+    | [] -> 0
+    | x :: tl when Option.is_none x -> count_some tl
+    | _ :: tl -> 1 + count_some tl
+  ;;
+val count_some : 'a option list -> int = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 51) ∗ all code *)
+```
+这样看起来有点不清楚，然而，比起直接添加一个模式的解决方案，这里每一条模式本身的含义是更清楚了。
+```ocaml
+# let rec count_some list =
+    match list with
+    | [] -> 0
+    | None   :: tl -> count_some tl
+    | Some _ :: tl -> 1 + count_some tl
+  ;;
+val count_some : 'a option list -> int = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 52) ∗ all code *)
+```
+所有这些中最终的方法是：尽管`when`子句很有用，但是无论何处只要模式够用，就应该优先使用模式。
+
+另外，上面的这个`count_some`实现没必要这么长，更糟的也不是尾递归的。实际应用中，使用Core中的`List.count`函数就行了。
+```ocaml
+# let count_some l = List.count ~f:Option.is_some l;;
+val count_some : 'a option list -> int = <fun>
+
+(* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 53) ∗ all code *)
+```
+
 
 
 
