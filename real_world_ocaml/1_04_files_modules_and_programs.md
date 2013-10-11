@@ -105,7 +105,43 @@ $ strings `which ocamlopt` | ./freq.byte
 ### 多文件程序和模块
 OCaml中的源文件组成了模块系统，每个文件都编译成一个模块，该模块名继承自文件名。之前我们已经碰到过模块了，例如当你使用类似`List.Assoc`模块中的`find`和`add`函数时。最简单的，你可以把模块看作是一个在命名空间中的定义的集合。
 
-### Signatures and abstract types
+现在让我们看一下如何使用模块来重构freq.ml。还记得吗，变量`counts`包含了一个代表行的频率计数的关联列表。更新关联列表的时间和其长度成线性关系，这就意味着整个处理的时间复杂度是文件行数的二次方。
+
+我们可以用更高效的数据结构代替关联列表来解决这个问题。为此，我们首先将关键功能以显式的接口放到一个单独的模块中。一旦有了清晰的编程接口，我们就可以考虑一个替代实现（更高效）。
+
+我们将从创建counter.ml文件开始，它包含了表示频率计数的关联列表的处理逻辑。主体函数是`touch`，将给定行的频率计数加一。
+```ocaml
+open Core.Std
+
+let touch t s =
+  let count =
+    match List.Assoc.find t s with
+    | None -> 0
+    | Some x -> x
+  in
+  List.Assoc.add t s (count + 1)
+
+(* OCaml ∗ files-modules-and-programs-freq-with-counter/counter.ml ∗ all code *)
+```
+counter.ml文件会被编译到`Counter`模块，模块名自动继承自文件名。即使文件名不是，模块名也是首字母大写的。实际上，模块名必须首字母大写。
+
+我们现在可以用`Counter`重写freq.ml了。注意代码依然可以使用ocamlbuild编译，它会发现依赖关系并知道需要编译counter.ml。
+```ocaml
+open Core.Std
+
+let build_counts () =
+  In_channel.fold_lines stdin ~init:[] ~f:Counter.touch
+
+let () =
+  build_counts ()
+  |> List.sort ~cmp:(fun (_,x) (_,y) -> Int.descending x y)
+  |> (fun l -> List.take l 10)
+  |> List.iter ~f:(fun (line,count) -> printf "%3d: %s\n" count line)
+
+(* OCaml ∗ files-modules-and-programs-freq-with-counter/freq.ml ∗ all code *)
+```
+
+### 签名和抽象类型
 
 ### Concrete types in signatures
 
