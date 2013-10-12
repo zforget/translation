@@ -142,8 +142,133 @@ let () =
 ```
 
 ### 签名和抽象类型
+即使我们已经把一些逻辑放到了`Counter`中，freq.ml的代码依然依赖于`Counter`的实现。实际上，看一下`build_counts`的定义就会知道它依赖这样一个事实：空的频率计数集合用空列表表示。想要去掉这个依赖，我们可以修改Counter的实现，而不必修改freq.ml中的客户代码。
 
-### Concrete types in signatures
+一个模块的实现细节可以通过附加一个接口来隐藏。（注意在OCaml中，接口、签名、模块类型这些术语是一回事。）文件filename.ml中定义的模块，可以使用filename.mli中的签名来限定。
+
+对于counter.mli，我们先不隐藏任何东西，只是写出描述counter.ml中当前内容的接口。`val`声明用以指定一个值的签名。`val`的语法如下所示：
+```ocaml
+val <identifier> : <type>
+
+(* Syntax ∗ files-modules-and-programs/val.syntax ∗ all code *)
+```
+使用上述语法我们可以写出counter.ml的签名如下：
+```ocaml
+open Core.Std
+
+(** Bump the frequency count for the given string. *)
+val touch : (string * int) list -> string -> (string * int) list
+
+(* OCaml ∗ files-modules-and-programs-freq-with-sig/counter.mli ∗ all code *)
+```
+注意，ocamlbuild会检查mli文件是否存在，并在构建中自动包含它。
+
+> **自动生成mli文件**
+>
+> 如果不想整个mli文件都手写，你可以让OCaml为你从源代码自动生成一个，然后再调整成你想要的。下面是一个使用corebuild的例子。
+> ```bash
+> $ corebuild counter.inferred.mli
+> $ cat _build/counter.inferred.mli
+> val touch :
+>   ('a, int) Core.Std.List.Assoc.t -> 'a -> ('a, int) Core.Std.List.Assoc.t
+>
+> #Terminal ∗ files-modules-and-programs-freq-with-counter/infer_mli.out ∗ all code
+> ```
+> 生成的代码和你之前手写的基本一样，但是更丑陋也更冗长，当然，还没有注释。通常，自动生成的mli文件只能作为一个起点。在OCaml中，mli文件是你表达和文档化你接口的关键位置，并且人类的编辑和组织能力是无法取代的。
+
+为了隐藏频率计数由关联列表表示这个事实，我们需要把频率计数的类型变为 **抽象**的。一个只在接口中出现名字面而没有定义的类型就是一个抽象类型。下面是`Counter`的抽象接口：
+```ocaml
+open Core.Std
+
+(** A collection of string frequency counts *)
+type t
+
+(** The empty set of frequency counts  *)
+val empty : t
+
+(** Bump the frequency count for the given string. *)
+val touch : t -> string -> t
+
+(** Converts the set of frequency counts to an association list.  A string shows
+    up at most once, and the counts are >= 1. *)
+val to_list : t -> (string * int) list
+
+(* OCaml ∗ files-modules-and-programs-freq-with-sig-abstract/counter.mli ∗ all code *)
+```
+注意需要向`Counter`中增加`empty`和`to_list`，因为，我们无法创建一个`Counter.t`，也无法从其中获取数据。
+
+我们也借机对模块进行了文档化。mli文件是你指定模块接口的地方，所以这是放置的文档的自然位置。我们使用两个星号来开始注释，这样ocamldoc工具就能在生成API文档时收集它们。我们会在[第23章编译器前端：解析和类型检查](#编译器前端解析和类型检查)中进一步讨论ocamldoc。
+
+下面我们根据新的counter.mli来重写counter.ml。
+```ocaml
+open Core.Std
+
+type t = (string * int) list
+
+let empty = []
+
+let to_list x = x
+
+let touch t s =
+  let count =
+    match List.Assoc.find t s with
+    | None -> 0
+    | Some x -> x
+  in
+  List.Assoc.add t s (count + 1)
+
+(* OCaml ∗ files-modules-and-programs-freq-with-sig-abstract/counter.ml ∗ all code *)
+```
+现在再编译freq.ml就会得到下面的错误。
+```ocaml
+$ corebuild freq.byte
+File "freq.ml", line 4, characters 42-55:
+Error: This expression has type Counter.t -> string -> Counter.t
+       but an expression was expected of type 'a list -> string -> 'a list
+       Type Counter.t is not compatible with type 'a list
+Command exited with code 2.
+
+(* Terminal ∗ files-modules-and-programs-freq-with-sig-abstract/build.out ∗ all code *)
+```
+这是因为freq.ml依赖频率计数由关联列表表示，而我们刚刚隐藏了这一点。我们需要修改`build_counts`，使用`Counter.empty`来代替`[]`，最后打印时使用`Counter.to_list`来获得关联列表。结果如下。
+```ocaml
+open Core.Std
+
+let build_counts () =
+  In_channel.fold_lines stdin ~init:Counter.empty ~f:Counter.touch
+
+let () =
+  build_counts ()
+  |> Counter.to_list
+  |> List.sort ~cmp:(fun (_,x) (_,y) -> Int.descending x y)
+  |> (fun counts -> List.take counts 10)
+  |> List.iter ~f:(fun (line,count) -> printf "%3d: %s\n" count line)
+
+(* OCaml ∗ files-modules-and-programs-freq-with-sig-abstract-fixed/freq.ml ∗ all code *)
+```
+现在我们可以转向去优化`Counter`的实现。下面是一个替代实现，效率要高得多，使用了Core中的`Map`数据结构。
+```ocaml
+open Core.Std
+
+type t = int String.Map.t
+
+let empty = String.Map.empty
+
+let to_list t = Map.to_alist t
+
+let touch t s =
+  let count =
+    match Map.find t s with
+    | None -> 0
+    | Some x -> x
+  in
+  Map.add t ~key:s ~data:(count + 1)
+
+(* OCaml ∗ files-modules-and-programs-freq-fast/counter.ml ∗ all code *)
+```
+注意上面我们有时用`String.Map`而有时只简单使用`Map`。这样做是因为对于有些操作，如创建一个`Map.t`，需要获得类型信息，其它的一些操作，如在一个`Map.t`中查找，则不需要。这在[第13章映射和哈希表](#映射和哈希表)中会进一步详述。
+
+### 签名中的具体类型
 
 ### Nested modules
 
