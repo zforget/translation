@@ -269,8 +269,43 @@ let touch t s =
 注意上面我们有时用`String.Map`而有时只简单使用`Map`。这样做是因为对于有些操作，如创建一个`Map.t`，需要获得类型信息，其它的一些操作，如在一个`Map.t`中查找，则不需要。这在[第13章映射和哈希表](#映射和哈希表)中会进一步详述。
 
 ### 签名中的具体类型
+在我们的频率计数例子中，`Counter`模块用一个抽象类型Counter.t来表示频率计数的集合。有时，你会希望你接口中的类型是 **具体**的，即在接口中包含类型定义。
 
-### Nested modules
+例如，想象一下我们要向`Counter`中添加一个函数，返回频率计数处于中间的那一行。如果行数是偶数，就没有一个明确的中间值，函数会返回中间值前后的两行。我们使用一个自定义的类型来表示返回值的这两种情况。下面是一个可能的实现。
+```ocaml
+type median = | Median of string
+              | Before_and_after of string * string
+
+let median t =
+  let sorted_strings = List.sort (Map.to_alist t)
+                         ~cmp:(fun (_,x) (_,y) -> Int.descending x y)
+  in
+  let len = List.length sorted_strings in
+  if len = 0 then failwith "median: empty frequency count";
+  let nth n = fst (List.nth_exn sorted_strings n) in
+  if len mod 2 = 1
+  then Median (nth (len/2))
+  else Before_and_after (nth (len/2 - 1), nth (len/2));;
+
+(* OCaml ∗ files-modules-and-programs-freq-median/counter.ml , continued (part 1) ∗ all code *)
+```
+上面我们用`failwith`对空列表的情况抛出异常。[第7章错误处理](#错误处理)中会进一步讨论异常。同时注意`fst`函数用以简单返回一个二元组的第一个元素。
+
+现在，要在接口中暴露这个功能，我们需要同时暴露函数`median`和类型`median`，包括类型`median`的定义。注意值（如函数就是一种值）和类型的命名空间不同，所以这里没有命名冲突。向counter.mli中添加下面两行就能达到这个目的。
+```ocaml
+(** Represents the median computed from a set of strings.  In the case where
+    there is an even number of choices, the one before and after the median is
+    returned.  *)
+type median = | Median of string
+              | Before_and_after of string * string
+
+val median : t -> median
+
+(* OCaml ∗ files-modules-and-programs-freq-median/counter.mli , continued (part 1) ∗ all code *)
+```
+决定一个类型是抽象的还是具体很重要。抽象类型在值的创建和访问上给你更多控制权，比起由靠类型自身，更容易强制使用不变量;具体类型使你可以轻松向客户代码暴露更多细节和结构。正确的选择依靠上下文确定。
+
+### 嵌套模块
 
 ### Opening modules
 
