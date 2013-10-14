@@ -306,13 +306,239 @@ val median : t -> median
 决定一个类型是抽象的还是具体很重要。抽象类型在值的创建和访问上给你更多控制权，比起由靠类型自身，更容易强制使用不变量;具体类型使你可以轻松向客户代码暴露更多细节和结构。正确的选择依靠上下文确定。
 
 ### 嵌套模块
+目前为止，我们只考虑了关联到文件的模块，如counter.ml。但模块（包括模块签名）也可以嵌套在其它模块中。举个简单例子，考虑一个处理类似用户名和主机名这样的多个标识符的程序。如果都用字符串表示，就容易将它们搞混。
 
-### Opening modules
+更好的方法是为每种标识符创建一个新的抽象类型，这些类型底层用字符串实现。这样，类型系统就会阻止你混淆用户名和主机名，如果需要转换，你可以使用显式的转换器在这些类型和字符串之间转换。
 
-### Including modules
+下面展示了如何使用子模块实现这个抽象类型。
+```ocaml
+open Core.Std
 
-### Common errors with modules
-#### Type mismatches
+module Username : sig
+  type t
+  val of_string : string -> t
+  val to_string : t -> string
+end = struct
+  type t = string
+  let of_string x = x
+  let to_string x = x
+end
+
+(* OCaml ∗ files-modules-and-programs/abstract_username.ml ∗ all code *)
+```
+注意，`to_string`和`of_string`被实现为恒等函数（identity function），这意味着它们没有运行时开销。它们纯粹是通过类型系统作用于代码的一些规则。
+
+模块声明的基本结构如下所示：
+```ocaml
+module <name> : <signature> = <implementation>
+
+(* Syntax ∗ files-modules-and-programs/module.syntax ∗ all code *)
+```
+我们可以稍微变通一下，使用`module type`在顶层定义签名，这样就可以轻松用相同的底层实现来定义不同的类型。
+```ocaml
+open Core.Std
+
+module type ID = sig
+  type t
+  val of_string : string -> t
+  val to_string : t -> string
+end
+
+module String_id = struct
+  type t = string
+  let of_string x = x
+  let to_string x = x
+end
+
+module Username : ID = String_id
+module Hostname : ID = String_id
+
+type session_info = { user: Username.t;
+                      host: Hostname.t;
+                      when_started: Time.t;
+                    }
+
+let sessions_have_same_user s1 s2 =
+  s1.user = s2.host
+
+(* OCaml ∗ files-modules-and-programs/session_info.ml ∗ all code *)
+```
+上面的代码有一个bug：你拿一个会话中的用户名和另一个会话中的主机名作比较，而实际上应该比较两个用户名。但因为定义了自己的类型，编译会为我们指出这个bug。
+```bash
+$ corebuild session_info.native
+File "session_info.ml", line 24, characters 12-19:
+Error: This expression has type Hostname.t
+       but an expression was expected of type Username.t
+Command exited with code 2.
+
+ # Terminal ∗ files-modules-and-programs/build_session_info.out ∗ all code 
+```
+这个例子没有什么实际意义，但是混淆不同的标识符确实是滋生bug的温床，为不同类的标识符创建抽象类型的方法可以有效避免此类问题。
+
+### 打开模块
+通常，你可以选择使用模块名作为显式的限定符来引用其中的值和模块。如，可以用`List.map`引用`List`模块中的`map`函数。但有时，你想要不用显式的限定符来引用模块内容。这就要使用`open`语句。
+
+我们之前已经见`open`了，特别是在我们用`open Core.Std`来获得Core库中的标准定义的访问权时。通常，打开一个模块会将其内容添加到编译器在其中查找标识符定义的环境中。下面是一个例子。
+```ocaml
+# module M = struct let foo = 3 end;;
+module M : sig val foo : int end
+# foo;;
+Characters -1-3:
+Error: Unbound value foo
+# open M;;
+# foo;;
+- : int = 3
+
+(* OCaml Utop ∗ files-modules-and-programs/main.topscript ∗ all code *)
+```
+当在环境中使用像Core这样的标准库时`open`非常重要，但是通常最小程度打开模块是更好的编程风格。打开模块基本上是简洁性和明确性之间的折衷--你打开的模块越多，所需的限定符就规越少，但查找一标识符及其出处也更困难。
+
+下面是如何打开模块的一些建议。
+
+- 在顶层打开一个模块要相当谨慎，通常，只有模块本身被特别设计成如此时才能打开，如`Core.Std`或`Option.Monad_infix`等。
+- 如果非要打开，最好使用局部打开（local open）。局部打开有两种语法。如，你可以这样写：
+ ```ocaml
+ # let average x y =
+    let open Int64 in
+    x + y / of_int 2;;
+  val average : int64 -> int64 -> int64 = <fun>
+
+ (* OCaml Utop ∗ files-modules-and-programs/main.topscript , continued (part 1) ∗ all code *)
+ ```
+ 上面，`of_int`和`infix`来自`Int64`模块。
+
+ 还有一种更轻量的语法，在短小表达式中特别有用：
+ ```ocaml
+ # let average x y =
+    Int64.(x + y / of_int 2);;
+ val average : int64 -> int64 -> int64 = <fun>
+
+ (* OCaml Utop ∗ files-modules-and-programs/main.topscript , continued (part 2) ∗ all code *)
+ ```
+- 除了局部打开可以保持简洁性又不失明确性，还可以在局部重新绑定模块名。所以，使用`Counter.map`类型时，除了可以这样写：
+ ```ocaml
+ let print_median m =
+   match m with
+   | Counter.Median string -> printf "True median:\n   %s\n" string
+   | Counter.Before_and_after (before, after) ->
+     printf "Before and after median:\n   %s\n   %s\n" before after
+ 
+ (* OCaml ∗ files-modules-and-programs-freq-median/use_median_1.ml , continued (part 1) ∗ all code *)
+ ```
+ 你还可以这样：
+ ```ocaml
+ let print_median m =
+   let module C = Counter in
+   match m with
+   | C.Median string -> printf "True median:\n   %s\n" string
+   | C.Before_and_after (before, after) ->
+     printf "Before and after median:\n   %s\n   %s\n" before after
+ 
+ (* OCaml ∗ files-modules-and-programs-freq-median/use_median_2.ml , continued (part 1) ∗ all code *)
+ ```
+ 因为模块名`C`的作用域很小，所以代码很容易阅读，也很容易指出`C`的含义。但通常，在顶层将模块重绑定到一个短名称上是个错误。
+ 
+### 包含模块
+打开模块影响查找标识符的环境，而包含一个模块则是一种向一个模块中添加新标识符的方法。下面是一个表示间隔范围的简单模块。
+```ocaml
+# module Interval = struct
+    type t = | Interval of int * int
+             | Empty
+
+    let create low high =
+      if high < low then Empty else Interval (low,high)
+  end;;
+module Interval :
+  sig
+    type t = Interval of int * int | Empty
+    val create : int -> int -> t
+  end
+
+(* OCaml Utop ∗ files-modules-and-programs/main.topscript , continued (part 3) ∗ all code *)
+```
+我们可以使用`include`指令来创建一新的`Interval`模块的扩展版本。
+```ocaml
+# module Extended_interval = struct
+    include Interval
+
+    let contains t x =
+      match t with
+      | Empty -> false
+      | Interval (low,high) -> x >= low && x <= high
+  end;;
+module Extended_interval :
+  sig
+    type t = Interval.t = Interval of int * int | Empty
+    val create : int -> int -> t val
+    contains : t -> int -> bool
+  end
+# Extended_interval.contains (Extended_interval.create 3 10) 4;;
+- : bool = true
+
+(* OCaml Utop ∗ files-modules-and-programs/main.topscript , continued (part 4) ∗ all code *)
+```
+`include`和`open`的不同在于，我们不只是修改了标识符如何搜索，我们还修改了模块的内容。如果上面使用`open`，结果会完全不同。
+```ocaml
+# module Extended_interval = struct
+    open Interval
+
+    let contains t x =
+      match t with
+      | Empty -> false
+      | Interval (low,high) -> x >= low && x <= high
+  end;;
+module Extended_interval :
+  sig
+    val contains : Extended_interval.t -> int -> bool
+  end
+# Extended_interval.contains (Extended_interval.create 3 10) 4;;
+Characters 28-52:
+Error: Unbound value Extended_interval.create
+
+(* OCaml Utop ∗ files-modules-and-programs/main.topscript , continued (part 5) ∗ all code *)
+```
+考虑一个更为实际的例子，想像一下你要构建`List`模块的扩展版本，以添加一些Core发布版中没有的功能。使用`include`就可以做到这一点。
+```ocaml
+open Core.Std
+
+(* The new function we're going to add *)
+let rec intersperse list el =
+  match list with
+  | [] | [ _ ]   -> list
+  | x :: y :: tl -> x :: el :: intersperse (y::tl) el
+
+(* The remainder of the list module *)
+include List
+
+(* OCaml ∗ files-modules-and-programs/ext_list.ml ∗ all code *)
+```
+现在，该如何给我们的新模块写接口呢？`include`是可以用在签名上的，所以我们可以用相同的技巧来写mli。唯一一个问题就是我们需要手动获得模块`List`的签名。这时可以使用`moudle type of`，它可以计算一个模块的签名。
+```ocaml
+open Core.Std
+
+(* Include the interface of the list module from Core *)
+include (module type of List)
+
+(* Signature of function we're adding *)
+val intersperse : 'a list -> 'a -> 'a list
+
+(* OCaml ∗ files-modules-and-programs/ext_list.mli ∗ all code *)
+```
+注意mli中的声明顺序不一定要和ml中的一样。ml中的声明通常在影响值的遮蔽时才重要。如果我们想要用一个新函数来替换`List`的一个函数，ml中新函数的声明就要在`include List`后面。
+
+现在我们可以使用`Ext_list`来代替`List`了。如果要在工程中优先使用`Ext_list`，我们可以创建一个通用定义：
+```ocaml
+module List = Ext_list
+
+(* OCaml ∗ files-modules-and-programs/common.ml ∗ all code *)
+```
+这样如果我们在工程内的每个文件中都将`open Common`放到`open Core.Std`后面，那么`List`的引用会自动转向`Ext_list`。
+
+### 与模块相关的常见错误
+当OCaml从ml和mli编译程序时，检查到两者之间不匹配就会报错。下面是一些你会遇到的常见错误。
+
+#### 类型不匹配
+
 #### Missing definitions
 #### Type definition mismatches
 #### Cyclic dependencies
