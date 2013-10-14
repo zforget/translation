@@ -538,8 +538,106 @@ module List = Ext_list
 当OCaml从ml和mli编译程序时，检查到两者之间不匹配就会报错。下面是一些你会遇到的常见错误。
 
 #### 类型不匹配
+最简单的错误就是签名指定的类型和模块实现中的类型不匹配。举个例子，如果我们把`counter.mli`中的`val`声明的前两个参数交换：
+```ocaml
+(** Bump the frequency count for the given string. *)
+val touch : string -> t -> t
 
-#### Missing definitions
-#### Type definition mismatches
-#### Cyclic dependencies
+(* OCaml ∗ files-modules-and-programs-freq-with-sig-mismatch/counter.mli , continued (part 1) ∗ all code *)
+```
+然后再试图编译时，我们就会得到下面的错误。
+```bash
+$ corebuild freq.byte
+File "freq.ml", line 4, characters 53-66:
+Error: This expression has type string -> Counter.t -> Counter.t
+       but an expression was expected of type
+         Counter.t -> string -> Counter.t
+       Type string is not compatible with type Counter.t 
+Command exited with code 2.
 
+# Terminal ∗ files-modules-and-programs-freq-with-sig-mismatch/build.out ∗ all code
+```
+
+#### 缺少定义
+我们可能会决定在`Counter`中要一个新的函数来提取一个给定字符串的频率计数。我们可以向mli添加下面的行。
+```ocaml
+val count : t -> string -> int
+
+(* OCaml ∗ files-modules-and-programs-freq-with-missing-def/counter.mli , continued (part 1) ∗ all code *)
+```
+现在，如果不添加实现就试图编译，我们会得到这样的错误：
+```bash
+$ corebuild freq.byte
+File "counter.ml", line 1:
+Error: The implementation counter.ml
+       does not match the interface counter.cmi:
+       The field `count' is required but not provided
+Command exited with code 2.
+
+# Terminal ∗ files-modules-and-programs-freq-with-missing-def/build.out ∗ all code
+```
+缺少类型定义会导致类似的错误。
+
+#### 类型定义不匹配
+mli中的类型定义需要和ml中的相关定义匹配。再一次考虑类型`median`的例子。变体(variant)的声明顺序对OCaml编译器来说是有意义的，所以`median`定义和实现的`option`如果顺序不同：
+```ocaml
+(** Represents the median computed from a set of strings.  In the case where
+    there is an even number of choices, the one before and after the median is
+    returned.  *)
+type median = | Before_and_after of string * string
+              | Median of string
+
+(* OCaml ∗ files-modules-and-programs-freq-with-type-mismatch/counter.mli , continued (part 1) ∗ all code *)
+```
+就会产生一个编译错误：
+```bash
+$ corebuild freq.byte
+File "counter.ml", line 1:
+Error: The implementation counter.ml
+       does not match the interface counter.cmi:
+       Type declarations do not match:
+         type median = Median of string | Before_and_after of string * string
+       is not included in
+         type median = Before_and_after of string * string | Median of string
+       File "counter.ml", line 18, characters 5-84: Actual declaration
+       Fields number 1 have different names, Median and Before_and_after.
+Command exited with code 2.
+
+# Terminal ∗ files-modules-and-programs-freq-with-type-mismatch/build.out ∗ all code 
+```
+顺序对于其它类型也有类似的重要性，包括记录类型字段的声名顺序和函数参数（包括标签参数和可选参数）的顺序。
+
+#### 循环依赖
+多数情况下，OCaml都不允许循环依赖，即，一组全部互相依赖的定义。如果你要创建这种定义，就需要特别标记它们。例如，当定义一组相互递归的值（像[“递归函数”一节](#递归函数)中定义的`is_even`和`is_odd`）时，你需要使用`let rec`而不是普通的`let`。
+
+在模块层面也是如此。模块间的相互依赖默认是不允许的，而文件之间的循环任何情况下都不允许。递归模块是可能的，但极少用，我们不在此讨论。
+
+禁止循环引用最简单的例子就是引用它自己的模块名。因此，如果我们在counter.ml添加一个对`Counter`的引用
+```ocaml
+let singleton l = Counter.touch Counter.empty
+
+(* OCaml ∗ files-modules-and-programs-freq-cyclic1/counter.ml , continued (part 1) ∗ all code *)
+```
+构建时我们就会得到这样的错误：
+```bash
+$ corebuild freq.byte
+File "counter.ml", line 18, characters 18-31:
+Error: Unbound module Counter
+Command exited with code 2.
+
+# Terminal ∗ files-modules-and-programs-freq-cyclic1/build.out ∗ all code
+```
+如果创建文件之间的循环引用，此问题会有不同的表现。通过在counter.ml中添加一个对`Freq`的引用我们就可以创造这种情况，如，添加下面这行代码。
+```ocaml
+let _build_counts = Freq.build_counts
+
+(* OCaml ∗ files-modules-and-programs-freq-cyclic2/counter.ml , continued (part 1) ∗ all code *)
+```
+这种情况下，ocamlbuild（会由corebuild脚本调用）会发现错误并明确报告循环引用。
+```bash
+$ corebuild freq.byte
+Circular dependencies: "freq.cmo" already seen in
+  [ "counter.cmo"; "freq.cmo" ]
+ 
+# Terminal ∗ files-modules-and-programs-freq-cyclic2/build.out ∗ all code
+```
