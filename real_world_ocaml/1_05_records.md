@@ -75,6 +75,42 @@ val first_timestamped : 'a timestamped list -> 'a timestamped option = <fun>
 (* OCaml Utop ∗ records/main.topscript , continued (part 4) ∗ all code *)
 ```
 ### 模式和穷尽性
+从记录获取信息的另一种方法是使用模块匹配，就像下面`host_info_to_string`的定义所示。
+```ocaml
+# let host_info_to_string { hostname = h; os_name = os;
+                            cpu_arch = c; timestamp = ts;
+                          } =
+       sprintf "%s (%s / %s, on %s)" h os c (Time.to_sec_string ts);;
+val host_info_to_string : host_info -> string = <fun>
+# host_info_to_string my_host;;
+- : string = "ocaml-www1 (Linux / unknown, on 2013-08-18 14:50:48)"
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 5) ∗ all code *)
+```
+注意我们使用的模块只有一种情况，而不是由`|`分割的多种情况。我们只需要一个模块是因为记录类型的模式是 **不可辩驳的（irrefutable）**，就是说一个记录的模式匹配在运行时永远都不会失败。这是有道理的，因为记录中的字段总是相同的。通常，固定结构类型的模式都是不会失败的，如记录和元组，而列表和变体这种可变结构的类型就不是。
+
+记录模式的另一个特点是它们不需要是完整的：一个模式可以只包含记录的一部分字段。这会带来方便，但也容易出错。特别是，这意味着当向记录中添加新字段时，编译器不会提示必须要更新代码以反映这些新字段。
+
+举个例子，假如我们向记录`host_info`添加一个叫作`os_release`的字段，如下所示：
+```ocaml
+# type host_info =
+    { hostname   : string;
+      os_name    : string;
+      cpu_arch   : string;
+      os_release : string;
+      timestamp  : Time.t;
+    } ;;
+type host_info = {
+  hostname : string;
+  os_name : string;
+  cpu_arch : string;
+  os_release : string;
+  timestamp : Time.t;
+}
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 6) ∗ all code *)
+```
+
 
 ### Field punning
 
