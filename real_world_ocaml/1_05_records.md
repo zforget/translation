@@ -473,7 +473,7 @@ val get_users : Logon.t list -> string list = <fun>
 
 (* OCaml Utop ∗ records/main.topscript , continued (part 28) ∗ all code *)
 ```
-这里我们写了一个小函数`(fun x -> x.Logon.user)`来访问`user`字段。这种访问器是非常常用的模式，如果自动生成会方便很多。Core提供的`fieldslib`讲法扩展就是用来干这个的。
+这里我们写了一个小函数`(fun x -> x.Logon.user)`来访问`user`字段。这种访问器是非常常用的模式，如果自动生成会方便很多。Core提供的`fieldslib`（zck：下面的这部分不如直接看[原文档](https://github.com/janestreet/fieldslib)）语法扩展就是用来干这个的。
 
 记录类型声明之后的`with fields`注解会使扩展应用到给定的类型声明上。所以，举个例子， 我们可以像下面这样定义`Logon`：
 ```ocaml
@@ -523,19 +523,20 @@ val get_users : Logon.t list -> string list = <fun>
 (* OCaml Utop ∗ records/main.topscript , continued (part 30) ∗ all code *)
 ```
 除了生成段访问函数，`fieldslib`还创建了一个名为`Fields`的子模块，此模块包含了每一个字段的一等公民表示，形式是一个类型为`Field.t`的值。`Field`模块提供了下列函数：
-`Field.name`
+
+`Field.name`  
 返回一个字段名
 
 `Field.get`   
 返回一个字段内容
 
-`Field.fset`
+`Field.fset`  
 函数式更新一个字段
 
 `Field.setter`   
 当字段不可变时返回`None`，可变时返回`Some f`，支持`f`是一个修改此字段的函数
 
-`Field.t`有两个类型参数：第一参数是记录类型，第二个是相关字段的类型。因此，`Logon.Fields.session_id`的类型是`（Logon.t, string） Field.t`，而`Logon.Fields.time`的类型是`(Logon.t, Time,t) Field.t`。因此，如果你对`Logon.Fields.user`调用`Field.get`，将会得到一个从Logon.t中提取`user`字段的函数：
+`Field.t`有两个类型参数：第一参数是记录类型，第二个是相关字段的类型。因此，`Logon.Fields.session_id`的类型是`（Logon.t, string） Field.t`，而`Logon.Fields.time`的类型是`(Logon.t, Time.t) Field.t`。因此，如果你对`Logon.Fields.user`调用`Field.get`，将会得到一个从Logon.t中提取`user`字段的函数：
 ```ocaml
 # Field.get Logon.Fields.user;;
 - : Logon.t -> string = <fun>
@@ -549,9 +550,9 @@ val get_users : Logon.t list -> string list = <fun>
 - : ('b, 'r, 'a) Field.t_with_perm -> 'r -> 'a = <fun>
 (* OCaml Utop ∗ records/main.topscript , continued (part 32) ∗ all code *)
 ```
-类型是`Field.t_with_perm`而不是`Field.t`是因为有些情况下，如我们要从一个记录暴露读取字段的能力时，字段有访问控制的概念，但非要暴露创建新记录的能力时却不需要，所以我们不能暴露函数式更新。
+类型是`Field.t_with_perm`而不是`Field.t`是因为有些情况下，如我们要从一个记录暴露读取字段的能力时，字段有访问控制的概念，但不暴露创建新记录的能力时却不需要，所以我们不能暴露函数式更新。
 
-使用作为一等公民的字段，我们可以写出一个显示一个记录字段的普通函数：
+使用作为一等公民的字段，我们可以写出一个显示一个记录字段的通用函数：
 ```ocaml
 # let show_field field to_string record =
     let name = Field.name field in
@@ -602,7 +603,7 @@ val logon : Logon.t =
 
 (* OCaml Utop ∗ records/main.topscript , continued (part 35) ∗ all code *)
 ```
-这看起来有点唬人，主要是因为访问控制标记的缘故，但其实结构是相当简单的。但一个标签参数都是一个函数，接收一个一等公民字段以及所需的类型作为参数。注意`iter`回调`Field.t`，而不是字段的内容。而字段内容可以通过组合记录和`Field.t`获取。
+这看起来有点唬人，主要是因为访问控制标记的缘故，但其实结构是相当简单的。每一个标签参数都是一个函数，接收一个一等公民字段以及所需的类型作为参数。注意`iter`回调`Field.t`，而不是字段的内容。而字段内容可以通过组合记录和`Field.t`获取。
 
 现在，让我们使用`Logon.Fields.iter`和`show_field`来打包`Logon`记录的所有字段：
 ```ocaml
