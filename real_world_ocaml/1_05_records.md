@@ -158,8 +158,58 @@ val host_info_to_string : host_info -> string = <fun>
 ### 字段双关
 > Field punning
 
+当变量名和记录的字段名一致时，OCaml提供了一些方便的快捷语法。如下面的函数，其中的模式把所有字段都绑定到同名变量上。这叫作 _字段双关_ :
+```ocaml
+# let host_info_to_string { hostname; os_name; cpu_arch; timestamp; _ } =
+     sprintf "%s (%s / %s) <%s>" hostname os_name cpu_arch
+       (Time.to_string timestamp);;
+val host_info_to_string : host_info -> string = <fun>
 
-### Reusing field names
+(* OCaml Utop ∗ records/main.topscript , continued (part 9) ∗ all code *)
+```
+字段双关也可以用于构造一个记录。考虑下面的代码，它创建了一个`host_info`记录：
+```ocaml
+# let my_host =
+    let sh cmd = Shell.sh_one_exn cmd in
+    let hostname   = sh "hostname" in
+    let os_name    = sh "uname -s" in
+    let cpu_arch   = sh "uname -p" in
+    let os_release = sh "uname -r" in
+    let timestamp  = Time.now () in
+    { hostname; os_name; cpu_arch; os_release; timestamp };;
+val my_host : host_info = {hostname = "flick.local"; os_name = "Darwin"; cpu_arch = "i386"; os_release = "13.0.0"; timestamp = 2013-11-05 08:49:41.499579-05:00}
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 10) ∗ all code *)
+```
+上面的代码中，我们根据记录字段定义了相关变量，然后记录声明就可以自己简单地列出所需的字段。
+
+当从标签参数构造记录时，你可以同时获得字段双关和标签双关带来的好处：
+```ocaml
+# let create_host_info ~hostname ~os_name ~cpu_arch ~os_release =
+    { os_name; cpu_arch; os_release;
+      hostname = String.lowercase hostname;
+      timestamp = Time.now () };;
+val create_host_info : hostname:string -> os_name:string -> cpu_arch:string -> os_release:string -> host_info = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 11) ∗ all code *)
+```
+这比不使用双关要简明得多：
+```ocaml
+# let create_host_info
+    ~hostname:hostname ~os_name:os_name
+    ~cpu_arch:cpu_arch ~os_release:os_release =
+    { os_name = os_name;
+      cpu_arch = cpu_arch;
+      os_release = os_release;
+      hostname = String.lowercase hostname;
+      timestamp = Time.now () };;
+val create_host_info : hostname:string -> os_name:string -> cpu_arch:string -> os_release:string -> host_info = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 12) ∗ all code *)
+```
+标签参数、字段名以及字段和标签双关，这些加在一起，鼓励你的代码库中传递相同的名称。这通常一种好的实践，因为它鼓励一致的命名，这使源代码更易驾驭。
+
+### 字段名复用
 
 ### Functional updates
 
