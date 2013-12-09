@@ -227,7 +227,135 @@ type client_message =
 ```
 一个`client_message`是一个`Logon`或`Heartbeat`或`Log_entry`。如果我们想要写出可以处理消息的通用代码，而不是只针对一个固定要类型，就需要像`client_message`这种包罗万象的的类型来代表不同的可能消息。然后我们可以匹配`client_message`来确定正在实际处理的消息类型。
 
-### Variants and Recursive Data Structures
+使用变体表示不同类型间的差异可以增加你类型的精确性，用记录来表示共享结构。考虑下面这个函数，接收一个`client_message`列表，返回给定用户的所有消息。代码通过折叠消息列表实现，积加器是下面两个元素的序对：
+- 已经处理过的该用户的会话标识集合
+- 已处理过和该用户关联的消息集合
+
+具体代码如下：
+```ocaml
+# let messages_for_user user messages =
+    let (user_messages,_) =
+      List.fold messages ~init:([],String.Set.empty)
+        ~f:(fun ((messages,user_sessions) as acc) message ->
+          match message with
+          | Logon m ->
+            if m.Logon.user = user then
+              (message::messages, Set.add user_sessions m.Logon.session_id)
+            else acc
+          | Heartbeat _ | Log_entry _ ->
+            let session_id = match message with
+              | Logon     m -> m.Logon.session_id
+              | Heartbeat m -> m.Heartbeat.session_id
+              | Log_entry m -> m.Log_entry.session_id
+            in
+            if Set.mem user_sessions session_id then
+              (message::messages,user_sessions)
+            else acc
+        )
+    in
+    List.rev user_messages
+  ;;
+val messages_for_user : string -> client_message list -> client_message list =
+  <fun>
+  
+(* OCaml Utop ∗ variants/logger.topscript , continued (part 3) ∗ all code *)
+```
+上面的代码有一部分很难看，就是决定会话ID那部分逻辑。代码有点复杂，关注每一种可能的消息类型（包括`Logon`实例，它是不可能出现在此处的）并在每个实例中提取会话ID。这种每个消息类型都处理的方式看起来是没有必要的，因为会话ID在所有的消息类型中的行为都一致。
+
+我们可以重构我们的类型来改进，显式反映要在不同消息间共享的信息。第一步是减小每个消息记录的定义，使其只包含此记录才有的信息：
+```ocaml
+# module Log_entry = struct
+    type t = { important: bool;
+               message: string;
+             }
+  end
+  module Heartbeat = struct
+    type t = { status_message: string; }
+  end
+  module Logon = struct
+    type t = { user: string;
+               credentials: string;
+             }
+  end ;;
+module Log_entry : sig type t = { important : bool; message : string; } end
+module Heartbeat : sig type t = { status_message : string; } end
+module Logon : sig type t = { user : string; credentials : string; } end
+
+(* OCaml Utop ∗ variants/logger.topscript , continued (part 4) ∗ all code *)
+```
+然后定义一个变体类型来组合这些类型：
+```ocaml
+# type details =
+    | Logon of Logon.t
+    | Heartbeat of Heartbeat.t
+    | Log_entry of Log_entry.t
+ ;;
+type details =
+    Logon of Logon.t
+  | Heartbeat of Heartbeat.t
+  | Log_entry of Log_entry.t
+
+(* OCaml Utop ∗ variants/logger.topscript , continued (part 5) ∗ all code *)
+```
+我们还需要一个单独的记录来包含所有消息都有的字段：
+```ocaml
+# module Common = struct
+    type t = { session_id: string;
+               time: Time.t;
+             }
+  end ;;
+module Common : sig type t = { session_id : string; time : Time.t; } end
+
+(* OCaml Utop ∗ variants/logger.topscript , continued (part 6) ∗ all code *)
+```
+
+一个完整的消息可以用`Common.t`和一个`details`的序对表示。这样，我们就可以像下面这样重写之前的例子：
+```ocaml
+# let messages_for_user user messages =
+    let (user_messages,_) =
+      List.fold messages ~init:([],String.Set.empty)
+        ~f:(fun ((messages,user_sessions) as acc) ((common,details) as message) ->
+          let session_id = common.Common.session_id in
+          match details with
+          | Logon m ->
+            if m.Logon.user = user then
+              (message::messages, Set.add user_sessions session_id)
+            else acc
+          | Heartbeat _ | Log_entry _ ->
+            if Set.mem user_sessions session_id then
+              (message::messages,user_sessions)
+            else acc
+        )
+    in
+    List.rev user_messages
+  ;;
+val messages_for_user :
+  string -> (Common.t * details) list -> (Common.t * details) list = <fun>
+
+(* OCaml Utop ∗ variants/logger.topscript , continued (part 7) ∗ all code *)
+```
+
+如你所见，提取会话ID的代码已被一个简单的表达式`common.Common.session_id`所代替。
+
+另外，这样的设计允许我们一旦知道了类型是什么，就可以向下转换到特定的消息类型，并转向只处理此种消息类型的代码。我们使用`Commin.t * details`类型来代表任意类型，也可以使用`Common.t * Logon.t`来表示一条登录消息。因此，如果我们有了处理单独消息类型的函数，就可以写出如下的分发函数：
+
+```ocaml
+# let handle_message server_state (common,details) =
+    match details with
+    | Log_entry m -> handle_log_entry server_state (common,m)
+    | Logon     m -> handle_logon     server_state (common,m)
+    | Heartbeat m -> handle_heartbeat server_state (common,m)
+  ;;
+Characters 95-111:
+Error: Unbound value handle_log_entry
+
+(* OCaml Utop ∗ variants/logger.topscript , continued (part 8) ∗ all code *)
+```
+在类型层面很明显，`handle_log_entry`只处理`Log_entry`消息，而`handle_logon`只处理`Logon`消息，以此类推。
+
+### 变体和递归数据结构
+变体的另一个常见应用是表示树状数据结构。我们将通过走一遍一个简单布尔表达式语言的设计来展示如何做到这一点。这种语言在任何需要指定过滤器的地方都很有用，过滤器在从数据包分析器到邮件客户端都有用。
+
 ### Polymorphic Variants
 #### Example: Terminal Colors Redux
 #### When to Use Polymorphic Variants
