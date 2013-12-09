@@ -370,7 +370,155 @@ val is_important : Log_entry.t -> bool = <fun>
 对于记录定义所在模块中的函数定义而言，模块限定完全不需要。
 
 ### 函数式更新
+经常地，你会想要创建一个新的记录，这个记录只和另一个已经存在的记录的差别只是某几个字段不一样。例如，想像一下我们的日志服务器有一个表示客户端状态的记录，包含了最后一次收到此客户端心跳包的时间，以及一个收到新的心跳包时更新此客户端信息的函数：
+```ocaml
+# type client_info =
+   { addr: Unix.Inet_addr.t;
+     port: int;
+     user: string;
+     credentials: string;
+     last_heartbeat_time: Time.t;
+   };;
+type client_info = { addr : UnixLabels.inet_addr; port : int; user : string; credentials : string; last_heartbeat_time : Time.t; }
+# let register_heartbeat t hb =
+      { addr = t.addr;
+        port = t.port;
+        user = t.user;
+        credentials = t.credentials;
+        last_heartbeat_time = hb.Heartbeat.time;
+      };;
+val register_heartbeat : client_info -> Heartbeat.t -> client_info = <fun>
 
-### Mutable fields
+(* OCaml Utop ∗ records/main.topscript , continued (part 22) ∗ all code *)
+```
+这相当啰唆，我你其实只需要改变一个字段，其它的字段都是直接从`t`拷贝过去的。使用OCaml的函数式更新语法，我们可以做得更简洁。语法如下：
+```ocaml
+{ <record> with <field> = <value>;
+                <field> = <value>;
+                ...
+}
 
-### First-class fields
+(* Syntax ∗ records/functional_update.syntax ∗ all code *)
+```
+这种语法的作用就是基于已有的记录，只改变几个字段来创建新记录。
+
+有了这个，我们就可以更简洁地重写`register_heartbeat`：
+```ocaml
+# let register_heartbeat t hb =
+    { t with last_heartbeat_time = hb.Heartbeat.time };;
+val register_heartbeat : client_info -> Heartbeat.t -> client_info = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 23) ∗ all code *)
+```
+函数式更新使你的代码独立于记录中未改变的字段。这通常会如你所愿，但也是有缺点的。如果你修改了记录定义，添加了更多的字段，类型系统不会提示你重新考虑你的代码是否需要修改以容纳新的字段。考虑如果你要在接收到心跳包后了状态消息添加一个字段时，会发生什么：
+```ocaml
+# type client_info =
+   { addr: Unix.Inet_addr.t;
+     port: int;
+     user: string;
+     credentials: string;
+     last_heartbeat_time: Time.t;
+     last_heartbeat_status: string;
+   };;
+type client_info = { addr : UnixLabels.inet_addr; port : int; user : string; credentials : string; last_heartbeat_time : Time.t; last_heartbeat_status : string; }
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 24) ∗ all code *)
+```
+`register_heartbeat`的原始版本现在无效了，因此编译器会警告你考虑如何处理新的字段。但是使用函数式更新的版本会继续编译通过，即使它错误地忽略了新的字段。正确的做法是像下面这样更新代码：
+```ocaml
+# let register_heartbeat t hb =
+    { t with last_heartbeat_time   = hb.Heartbeat.time;
+             last_heartbeat_status = hb.Heartbeat.status_message;
+    };;
+val register_heartbeat : client_info -> Heartbeat.t -> client_info = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 25) ∗ all code *)
+```
+
+### 可变字段
+和OCaml的大多数值一样，记录默认是不可变的。然而，你还是可以把记录的字段分别声明成可变的。在下面的代码中，我们使`client_info`的最后两个字段可变：
+```ocaml
+# type client_info =
+   { addr: Unix.Inet_addr.t;
+     port: int;
+     user: string;
+     credentials: string;
+     mutable last_heartbeat_time: Time.t;
+     mutable last_heartbeat_status: string;
+   };;
+type client_info = { addr : UnixLabels.inet_addr; port : int; user : string; credentials : string; mutable last_heartbeat_time : Time.t; mutable last_heartbeat_status : string; }
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 26) ∗ all code *)
+```
+`<-`操作符用以设置可变字段。`register_heartbeat`的副作用版本如下：
+```ocaml
+# let register_heartbeat t hb =
+    t.last_heartbeat_time   <- hb.Heartbeat.time;
+    t.last_heartbeat_status <- hb.Heartbeat.status_message
+  ;;
+val register_heartbeat : client_info -> Heartbeat.t -> unit = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 27) ∗ all code *)
+```
+注意在初始化时是不需要可变赋值，即`<-`操作符的，因为记录的所有字段，包括可变的，都会在记录创建时指定。
+
+OCaml默认不可变的策略是好的，但命令式编程也是OCaml编程的一个重要部分。我们会在[“命令式编程”一节](#命令式编程)深入讨论如何（以及何时）使用OCaml的命令式特性。
+
+### 字段作为一等公民
+考虑下面这个函数，从`Logon`消息列表中提取用户名：
+```ocaml
+# let get_users logons =
+     List.dedup (List.map logons ~f:(fun x -> x.Logon.user));;
+val get_users : Logon.t list -> string list = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 28) ∗ all code *)
+```
+这里我们写了一个小函数`(fun x -> x.Logon.user)`来访问`user`字段。这种访问器是非常常用的模式，如果自动生成会方便很多。Core提供的`fieldslib`讲法扩展就是用来干这个的。
+
+记录类型声明之后的`with fields`注解会使扩展应用到给定的类型声明上。所以，举个例子， 我们可以像下面这样定义`Logon`：
+```ocaml
+# module Logon = struct
+    type t =
+      { session_id: string;
+        time: Time.t;
+        user: string;
+        credentials: string;
+      }
+    with fields
+  end;;
+module Logon :
+  sig type t = {
+    session_id : string;
+    time : Time.t;
+    user : string;
+    credentials : string;
+  }
+  val credentials : t -> string
+  val user : t -> string
+  val time : t -> Time.t
+  val session_id : t -> string
+  module Fields :
+    sig
+      val names : string list
+      val credentials :
+        ([< `Read | `Set_and_create ], t, string) Field.t_with_perm
+      val user :
+        ([< `Read | `Set_and_create ], t, string) Field.t_with_perm
+      val time :
+        ([< `Read | `Set_and_create ], t, Time.t) Field.t_with_perm
+      val session_id : ([< `Read | `Set_and_create ], t, string) Field.t_with_perm
+      [ ... many definitions omitted ... ]
+    end
+end
+
+(* OCaml Utop ∗ records/main-29.rawscript ∗ all code *)
+```
+注意这会产生大量的输出，因为`fieldslib`产生了一大堆处理记录字段的辅助函数。我们只讨论其中的少数几个；剩下的你可以从`fieldslib`的文档学习。
+
+其中一个要提及的函数就是`Logon.user`，用以从一个`logon`消息中提取`user`字段：
+```ocaml
+# let get_users logons = List.dedup (List.map logons ~f:Logon.user);;
+val get_users : Logon.t list -> string list = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 30) ∗ all code *)
+```
