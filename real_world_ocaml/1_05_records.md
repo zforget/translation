@@ -210,8 +210,166 @@ val create_host_info : hostname:string -> os_name:string -> cpu_arch:string -> o
 标签参数、字段名以及字段和标签双关，这些加在一起，鼓励你的代码库中传递相同的名称。这通常一种好的实践，因为它鼓励一致的命名，这使源代码更易驾驭。
 
 ### 字段名复用
+使用相同的名字的字段定义记录是有问题的。让我们看一个简单例子：构建一些类型用以表示一个日志服务器使用的协议。
 
-### Functional updates
+我们将描述三类消息：`log_entry`，`heartheat`和`logon`。`log_entry`消息用以向服务器传递一条日志；`logon`消息用以初始化连接，包含连接用户的身份标识和认证证书；	heartbeat	消息由客户端定期发给服务器以表明该客户还活动并且已连接。所有这些消息都包含一个会话ID和一个消息创建时间：
+```ocaml
+# type log_entry =
+    { session_id: string;
+      time: Time.t;
+      important: bool;
+      message: string;
+    }
+  type heartbeat =
+    { session_id: string;
+      time: Time.t;
+      status_message: string;
+    }
+  type logon =
+    { session_id: string;
+      time: Time.t;
+      user: string;
+      credentials: string;
+    }
+;;
+type log_entry = {
+  session_id : string;
+  time : Time.t;
+  important : bool;
+  message : string;
+}
+type heartbeat = {
+  session_id : string;
+  time : Time.t;
+  status_message : string;
+}
+type logon = {
+  session_id : string;
+  time : Time.t;
+  user : string;
+  credentials : string;
+}
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 13) ∗ all code *)
+```
+复用相同的字段名会引发一些歧义。举个例子，如果我们想从一个记录中提取`session_id`，那么类型是什么呢?
+```ocaml
+# let get_session_id t = t.session_id;;
+val get_session_id : logon -> string = <fun>
+(* OCaml Utop ∗ records/main.topscript , continued (part 14) ∗ all code *)
+```
+这种情况下，OCaml只会采用该字段最近的定义。我们可以使用类型注释来强制OCaml认为我们在处理不同的类型（如`heartheat`）：
+```ocaml
+# let get_heartbeat_session_id (t:heartbeat) = t.session_id;;
+val get_heartbeat_session_id : heartbeat -> string = <fun>
+(* OCaml Utop ∗ records/main.topscript , continued (part 15) ∗ all code *0
+```
+尽管可以使用类型注释解决字段名歧义，这种歧意还是有点迷惑人。看下面这个函数，从一个`heartbeat`中提取会话ID和状态：
+```ocaml
+# let status_and_session t = (t.status_message, t.session_id);;
+val status_and_session : heartbeat -> string * string = <fun>
+# let session_and_status t = (t.session_id, t.status_message);;
+Characters 44-58:
+Error: The record type logon has no field status_message
+# let session_and_status (t:heartbeat) = (t.session_id, t.status_message);;
+val session_and_status : heartbeat -> string * string = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 16) ∗ all code *)
+```
+为什么第一个定义不用类型定义就可以成功而第二个却失败了呢?不同点就在于第一种情况时，类型检查会先处理`status_message`字段并确定这个记录是一个`heartbeat`。当顺序改变时，`session_id`被先考虑，因此类型被推导成`logon`，这时`t.status_message`就没有意义了。
+
+通过不使用重复的字段名，或更一般的，通过为每个类型创建一个模块，我们就可以完全避免这种歧义。把类型包装在模块中是一个非常有用的惯用法（Core中大量使用这种技术），为每个类型提供一个命名空间，在其中放置相关的值。使用这种风格时，标准的实践就将模块相关的类型命名为`t`。使用这种风格我们可以这样写：
+```ocaml
+# module Log_entry = struct
+    type t =
+      { session_id: string;
+        time: Time.t;
+        important: bool;
+        message: string;
+      }
+  end
+  module Heartbeat = struct
+    type t =
+      { session_id: string;
+        time: Time.t;
+        status_message: string;
+      }
+  end
+  module Logon = struct
+    type t =
+      { session_id: string;
+        time: Time.t;
+        user: string;
+        credentials: string;
+      }
+  end;;
+module Log_entry :
+  sig
+    type t = {
+      session_id : string;
+      time : Time.t;
+      important : bool;
+      message : string;
+    }
+  end
+module Heartbeat :
+  sig
+    type t = { session_id : string; time : Time.t; status_message : string; }
+  end
+module Logon :
+  sig
+    type t = {
+      session_id : string;
+      time : Time.t;
+      user : string;
+      credentials : string;
+    }
+  end
+(* OCaml Utop ∗ records/main.topscript , continued (part 17) ∗ all code *)
+```
+现在，我们的`log-entry-creation`函数可以像下面这样呈现：
+```ocaml
+# let create_log_entry ~session_id ~important message =
+     { Log_entry.time = Time.now (); Log_entry.session_id;
+       Log_entry.important; Log_entry.message }
+  ;;
+val create_log_entry :
+  session_id:string -> important:bool -> string -> Log_entry.t = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 18) ∗ all code *)
+```
+需要使用模块名`Log_entry`来限定字段，因为此函数在定义记录类型的`Log_entry`模块之外。OCaml只要求限定一个记录字段，因此我们可以写得更简洁。注意模块路径和字段名之间允许加空白：
+```ocaml
+# let create_log_entry ~session_id ~important message =
+     { Log_entry.
+       time = Time.now (); session_id; important; message }
+  ;;
+val create_log_entry :
+  session_id:string -> important:bool -> string -> Log_entry.t = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 19) ∗ all code *)
+```
+这不限于构造一个记录，我们也可以模式匹配中使用相同的技巧：
+```ocaml
+# let message_to_string { Log_entry.important; message; _ } =
+    if important then String.uppercase message else message
+  ;;
+val message_to_string : Log_entry.t -> string = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 20) ∗ all code *)
+```
+当使用点号访问记录字段时，我们可以直接使用模块来限定字段：
+```ocaml
+# let is_important t = t.Log_entry.important;;
+val is_important : Log_entry.t -> bool = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 21) ∗ all code *)
+```
+第一次见到这样语法会使你大吃一惊。有一件事要记清楚，就是点号用了两种使用方法：第一个点是记录字段存取，右边的所有东西都会被解释为一个字段名；第二这点号是访问模块内容，指出`important`字段来看`Log_entry`模块。`Log_entry`是大写字母开头的，不能作为字段名，这使得两种用途不会被混淆。
+
+对于记录定义所在模块中的函数定义而言，模块限定完全不需要。
+
+### 函数式更新
 
 ### Mutable fields
 
