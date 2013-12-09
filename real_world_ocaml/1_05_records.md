@@ -522,3 +522,111 @@ val get_users : Logon.t list -> string list = <fun>
 
 (* OCaml Utop ∗ records/main.topscript , continued (part 30) ∗ all code *)
 ```
+除了生成段访问函数，`fieldslib`还创建了一个名为`Fields`的子模块，此模块包含了每一个字段的一等公民表示，形式是一个类型为`Field.t`的值。`Field`模块提供了下列函数：
+`Field.name`
+返回一个字段名
+
+`Field.get`   
+返回一个字段内容
+
+`Field.fset`
+函数式更新一个字段
+
+`Field.setter`   
+当字段不可变时返回`None`，可变时返回`Some f`，支持`f`是一个修改此字段的函数
+
+`Field.t`有两个类型参数：第一参数是记录类型，第二个是相关字段的类型。因此，`Logon.Fields.session_id`的类型是`（Logon.t, string） Field.t`，而`Logon.Fields.time`的类型是`(Logon.t, Time,t) Field.t`。因此，如果你对`Logon.Fields.user`调用`Field.get`，将会得到一个从Logon.t中提取`user`字段的函数：
+```ocaml
+# Field.get Logon.Fields.user;;
+- : Logon.t -> string = <fun>
+(* OCaml Utop ∗ records/main.topscript , continued (part 31) ∗ all code *)
+```
+因此，`Field.t`的第一参数是关于你传入的记录的，第二个参数是关于字段中包含的值的类型的， 这同时也是`get`的返回值类型。
+
+`Field.get`的类型比你之前遇到的都有点复杂：
+```ocaml
+# Field.get;;
+- : ('b, 'r, 'a) Field.t_with_perm -> 'r -> 'a = <fun>
+(* OCaml Utop ∗ records/main.topscript , continued (part 32) ∗ all code *)
+```
+类型是`Field.t_with_perm`而不是`Field.t`是因为有些情况下，如我们要从一个记录暴露读取字段的能力时，字段有访问控制的概念，但非要暴露创建新记录的能力时却不需要，所以我们不能暴露函数式更新。
+
+使用作为一等公民的字段，我们可以写出一个显示一个记录字段的普通函数：
+```ocaml
+# let show_field field to_string record =
+    let name = Field.name field in
+    let field_string = to_string (Field.get field record) in
+    name ^ ": " ^ field_string
+  ;;
+val show_field :
+  ('a, 'b, 'c) Field.t_with_perm -> ('c -> string) -> 'b -> string = <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 33) ∗ all code *)
+```
+它接收三个参数：`Field.t`，一个把内容转换成字符串的函数，和一个从中提取字段的记录。
+
+下面是一个使用`show_field`的例子：
+```ocaml
+
+# let logon = { Logon.
+                session_id = "26685";
+                time = Time.now ();
+                user = "yminsky";
+                credentials = "Xy2d9W"; }
+  ;;
+val logon : Logon.t =
+  {Logon.session_id = "26685"; time = 2013-11-05 08:49:43.946365-05:00;
+   user = "yminsky"; credentials = "Xy2d9W"}
+# show_field Logon.Fields.user Fn.id logon;;
+- : string = "user: yminsky"
+# show_field Logon.Fields.time Time.to_string logon;;
+- : string = "time: 2013-11-05 08:49:43.946365-05:00"
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 34) ∗ all code *)
+```
+要指出的是，上面的例子中我们首次使用了`Fn`模块（“function”的缩写），它提供了一组有用的原语来操作函数。`Fn.id`是标识函数。
+
+`fieldslib`也提供了高级操作符，如`Fields.fold`和`Fields.iter`，让你可以遍历一个记录的字段。举个例子，使用`Logon.t`时，字段迭代器类型如下：
+```ocaml
+# Logon.Fields.iter;;
+- : session_id:(([< `Read | `Set_and_create ], Logon.t, string)
+                Field.t_with_perm -> 'a) ->
+    time:(([< `Read | `Set_and_create ], Logon.t, Time.t) Field.t_with_perm ->
+          'b) ->
+    user:(([< `Read | `Set_and_create ], Logon.t, string) Field.t_with_perm ->
+          'c) ->
+    credentials:(([< `Read | `Set_and_create ], Logon.t, string)
+                 Field.t_with_perm -> 'd) ->
+    'd
+= <fun>
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 35) ∗ all code *)
+```
+这看起来有点唬人，主要是因为访问控制标记的缘故，但其实结构是相当简单的。但一个标签参数都是一个函数，接收一个一等公民字段以及所需的类型作为参数。注意`iter`回调`Field.t`，而不是字段的内容。而字段内容可以通过组合记录和`Field.t`获取。
+
+现在，让我们使用`Logon.Fields.iter`和`show_field`来打包`Logon`记录的所有字段：
+```ocaml
+# let print_logon logon =
+    let print to_string field =
+      printf "%s\n" (show_field field to_string logon)
+    in
+    Logon.Fields.iter
+      ~session_id:(print Fn.id)
+      ~time:(print Time.to_string)
+      ~user:(print Fn.id)
+      ~credentials:(print Fn.id)
+  ;;
+val print_logon : Logon.t -> unit = <fun>
+# print_logon logon;;
+session_id: 26685
+time: 2013-11-05 08:49:43.946365-05:00
+user: yminsky
+credentials: Xy2d9W
+- : unit = ()
+
+(* OCaml Utop ∗ records/main.topscript , continued (part 36) ∗ all code *)
+```
+这种方法的一个好处是可以帮助你的代码适应记录字段的变化。如果你向`Logon.t`添加一个字段，`Logon.Fields.iter`的类型也会随之变化，要求一个新的参数。任何使用了`Logon.Fields`的代码都要针对新参数修改后才能编译过。
+
+字段迭代器对于大量记录相关的任务都很有用，这些任务从构建记录验证函数到从一个记录类型搭建一个web表单。此类应用都会从记录字段都获得考虑这件事中获益。
+
