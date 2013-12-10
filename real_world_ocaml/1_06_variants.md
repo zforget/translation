@@ -689,7 +689,7 @@ Error: This expression has type [> `RGBA of int * int * int * int ]
 
 (* OCaml Utop ∗ variants/main.topscript , continued (part 15) ∗ all code *)
 ```
-#### When to Use Polymorphic Variants
+
 > **多态变体和笼统分支(catch-all cases)**
 > 
 > 之前见到的`is_positive`定义中，`match`语句导致推导出一个有上边界的变体类型，限制了匹配可以处理的标签。如果我们在`match`语句上添加一个笼统分支，就会得到一个有下边界的类型：
@@ -705,8 +705,98 @@ Error: This expression has type [> `RGBA of int * int * int * int ]
 > # is_positive_permissive (`Ratio (3,4));;
 > - : (bool, string) Result.t = Error "Unknown number type"
 >
-> OCaml Utop ∗ variants/main.topscript , continued (part 16) ∗ all code
+> (* OCaml Utop ∗ variants/main.topscript , continued (part 16) ∗ all code *)
 > ```
-> 即使是使用普通变体，笼统分支也是滋生错误的温床，但是和多态变体一起使用时，这个问题尤为严重。
-> Catch-all cases are error-prone even with ordinary variants, but they are especially so with polymorphic variants. That's because you have no way of bounding what tags your function might have to deal with. Such code is particularly vulnerable to typos. For instance, if code that uses is_positive_permissive passes in Float misspelled as Floot, the erroneous code will compile without complaint:
->
+> 即使是使用普通变体，笼统分支也是滋生错误的温床，但是和多态变体一起使用时，这个问题尤为严重。因为你无法界定你的函数可以处理哪些标签。这种代码特别容易受输入错误的影响。举个例子，如果代码中传递给`is_positive_permissive`的`Float`误拼成了`Floot`，错误的代码也可以编译并不报错。
+> ```ocaml
+> # is_positive_permissive (`Floot 3.5);;
+> - : (bool, string) Result.t = Error "Unknown number type"
+> (* OCaml Utop ∗ variants/main.topscript , continued (part 17) ∗ all code *)
+> ```
+> 使用普通变体，这种输入错误会导致一个不识别的标签。通常，混合使用笼统分支和多态变体时都要格外小心。、
+
+说我们来考虑一下如何把我们的代码装进一个合适的库，实现在ml文件中，接口在单独的mli文件中，就和[第四章，文件、模块和程序](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_04_files_modules_and_programs.md)中看到的那样。让我们从mli文件开始：
+```ocaml
+open Core.Std
+
+type basic_color =
+  [ `Black   | `Blue | `Cyan  | `Green
+  | `Magenta | `Red  | `White | `Yellow ]
+
+type color =
+  [ `Basic of basic_color * [ `Bold | `Regular ]
+  | `Gray of int
+  | `RGB  of int * int * int ]
+
+type extended_color =
+  [ color
+  | `RGBA of int * int * int * int ]
+
+val color_to_int          : color -> int
+val extended_color_to_int : extended_color -> int
+
+(* OCaml ∗ variants-termcol/terminal_color.mli ∗ all code *)
+```
+这里， `extended_color`被显式地定义为`color`的一个扩展。同时，注意我们把所有类型都定义成了确切变体。我们可以像下面这样实现这个库：
+```ocaml
+open Core.Std
+
+type basic_color =
+  [ `Black   | `Blue | `Cyan  | `Green
+  | `Magenta | `Red  | `White | `Yellow ]
+
+type color =
+  [ `Basic of basic_color * [ `Bold | `Regular ]
+  | `Gray of int
+  | `RGB  of int * int * int ]
+
+type extended_color =
+  [ color
+  | `RGBA of int * int * int * int ]
+
+let basic_color_to_int = function
+  | `Black -> 0 | `Red     -> 1 | `Green -> 2 | `Yellow -> 3
+  | `Blue  -> 4 | `Magenta -> 5 | `Cyan  -> 6 | `White  -> 7
+
+let color_to_int = function
+  | `Basic (basic_color,weight) ->
+    let base = match weight with `Bold -> 8 | `Regular -> 0 in
+    base + basic_color_to_int basic_color
+  | `RGB (r,g,b) -> 16 + b + g * 6 + r * 36
+  | `Gray i -> 232 + i
+
+let extended_color_to_int = function
+  | `RGBA (r,g,b,a) -> 256 + a + b * 6 + g * 36 + r * 216
+  | `Grey x -> 2000 + x
+  | (`Basic _ | `RGB _ | `Gray _) as color -> color_to_int color
+
+(* OCaml ∗ variants-termcol/terminal_color.ml ∗ all code *)
+```
+在上面的代码中，定义`extended_color_to_int`时我们做了一些有趣的事来暴露多态变体的劣势。我们添加了一个特别的分支来处理灰色，而不是使用`color_to_int`。但不幸的是，我们把`Gray`误拼作了`Grey`。使用普通变体时编译器显然应该会捕捉到这个错误，但是使用多态变体，编译没有任何问题。发生所有的不同就是编译器为`extended_color_to_int`推导出一个更宽的类型，它恰好与mli文件中列出的较窄的类型兼容。
+
+如果我们给代码添加一个类型注释（不仅是在mli中），那么编译器就会有足够的信息来警告我们了：
+```ocaml
+let extended_color_to_int : extended_color -> int = function
+  | `RGBA (r,g,b,a) -> 256 + a + b * 6 + g * 36 + r * 216
+  | `Grey x -> 2000 + x
+  | (`Basic _ | `RGB _ | `Gray _) as color -> color_to_int color
+```
+这样编译器会报怨`` `Grey``分支没有使用：
+```bash
+$ corebuild terminal_color.native
+File "terminal_color.ml", line 30, characters 4-11:
+Error: This pattern matches values of type [? `Grey of 'a ]
+       but a pattern was expected which matches values of type extended_color
+       The second variant type does not allow tag(s) `Grey
+Command exited with code 2.
+Terminal ∗ variants-termcol-annotated/build.out ∗ all code
+```
+一旦定义了类型，我们就可以重新审视如何写出窄化类型的模式匹配这个问题。我们可以显式地使用类型名作为模式匹配的一部分，加一个`#`前缀：
+```ocaml
+let extended_color_to_int : extended_color -> int = function
+  | `RGBA (r,g,b,a) -> 256 + a + b * 6 + g * 36 + r * 216
+  | #color as color -> color_to_int color
+```
+当你想要窄化一个定义很长的类型时，这就有用了，你绝不想在匹配中啰唆地显式重写这些标签。
+
+#### 何时使用多态变体
