@@ -356,6 +356,227 @@ Error: Unbound value handle_log_entry
 ### 变体和递归数据结构
 变体的另一个常见应用是表示树状数据结构。我们将通过走一遍一个简单布尔表达式语言的设计来展示如何做到这一点。这种语言在任何需要指定过滤器的地方都很有用，过滤器在从数据包分析器到邮件客户端都有用。
 
-### Polymorphic Variants
-#### Example: Terminal Colors Redux
+这种语言中的表达式由一个变体`expr`定义，其中对每一种支持的表达式都对应一个标签：
+```ocaml
+# type 'a expr =
+    | Base  of 'a
+    | Const of bool
+    | And   of 'a expr list
+    | Or    of 'a expr list
+    | Not   of 'a expr
+  ;;
+type 'a expr =
+    Base of 'a
+  | Const of bool
+  | And of 'a expr list
+  | Or of 'a expr list
+  | Not of 'a expr
+
+(* OCaml Utop ∗ variants/blang.topscript ∗ all code *)
+```
+注意`expr`类型的定义是递归的，这意味着一个`expr`可以包含其它`expr`。同时，`expr`使用一个多态类型`'a`参数化，用以指定`Base`标签下值的类型。
+
+每个标签的目的都很直接。`And`、`Or`和`Not`是构建布尔表达式的基本运算符，`Const`用以输入常量true和false。
+
+`Base`标签允许你把`expr`和你的应用联系起来，让你指定一些基本谓词类型的元素，其真或假取决于你的应用。如果你在给一个邮件处理器写过滤语言，你的基本谓词可能指定了你要针对邮件做的测试，如下所示：
+```ocaml
+# type mail_field = To | From | CC | Date | Subject
+  type mail_predicate = { field: mail_field;
+                          contains: string }
+  ;;
+type mail_field = To | From | CC | Date | Subject
+type mail_predicate = { field : mail_field; contains : string; }
+
+(* OCaml Utop ∗ variants/blang.topscript , continued (part 1) ∗ all code *)
+```
+使用上面的代码，我们就能以`mail_predicate`为基本谓词创建一个简单表达式了：
+```ocaml
+# let test field contains = Base { field; contains };;
+val test : mail_field -> string -> mail_predicate expr = <fun>
+# And [ Or [ test To "doligez"; test CC "doligez" ];
+        test Subject "runtime";
+      ]
+  ;;
+- : mail_predicate expr =
+And
+ [Or
+   [Base {field = To; contains = "doligez"};
+    Base {field = CC; contains = "doligez"}];
+  Base {field = Subject; contains = "runtime"}]
+
+(* OCaml Utop ∗ variants/blang.topscript , continued (part 2) ∗ all code *)
+```
+只能构造表达式还不够，我们还需要能对其求值。下面即是一个求值函数：
+```ocaml
+# let rec eval expr base_eval =
+    (* a shortcut, so we don't need to repeatedly pass [base_eval]
+       explicitly to [eval] *)
+    let eval' expr = eval expr base_eval in
+    match expr with
+    | Base  base   -> base_eval base
+    | Const bool   -> bool
+    | And   exprs -> List.for_all exprs ~f:eval'
+    | Or    exprs -> List.exists  exprs ~f:eval'
+    | Not   expr  -> not (eval' expr)
+  ;;
+val eval : 'a expr -> ('a -> bool) -> bool = <fun>
+
+(* OCaml Utop ∗ variants/blang.topscript , continued (part 3) ∗ all code *)
+```
+代码结构很清晰--我们只是在数据结构上使用模式匹配，根据标签使用合适的计算。要在具体例子中使用这个求值器，我们只需要写一个`base_eval`函数，用以求值一个基本谓词。
+
+表达式的另一个有用的操作符是简化。下面是一组简化构造函数，每一个对应于`expr`中的一个标签：
+```ocaml
+# let and_ l =
+    if List.mem l (Const false) then Const false
+    else
+      match List.filter l ~f:((<>) (Const true)) with
+      | [] -> Const true
+      | [ x ] -> x
+      | l -> And l
+
+  let or_ l =
+    if List.mem l (Const true) then Const true
+    else
+      match List.filter l ~f:((<>) (Const false)) with
+      | [] -> Const false
+      | [x] -> x
+      | l -> Or l
+
+  let not_ = function
+    | Const b -> Const (not b)
+    | e -> Not e
+  ;;
+val and_ : 'a expr list -> 'a expr = <fun>
+val or_ : 'a expr list -> 'a expr = <fun>
+val not_ : 'a expr -> 'a expr = <fun>
+
+(* OCaml Utop ∗ variants/blang.topscript , continued (part 4) ∗ all code *)
+```
+基于以上函数我们可以写一个简化例程.
+```ocaml
+# let rec simplify = function
+    | Base _ | Const _ as x -> x
+    | And l -> and_ (List.map ~f:simplify l)
+    | Or l  -> or_  (List.map ~f:simplify l)
+    | Not e -> not_ (simplify e)
+  ;;
+val simplify : 'a expr -> 'a expr = <fun>
+
+(* OCaml Utop ∗ variants/blang.topscript , continued (part 5) ∗ all code *)
+```
+我们可以将其作用于一个布尔表达式，看看简化得怎么样：
+```ocaml
+# simplify (Not (And [ Or [Base "it's snowing"; Const true];
+                       Base "it's raining"]));;
+- : string expr = Not (Base "it's raining")
+
+(* OCaml Utop ∗ variants/blang.topscript , continued (part 6) ∗ all code *)
+```
+这里，它正确地将`Or`分支转换成`Const true`，然后完全消除了`And`，因为`And`只剩下一个有内容的元素了。
+
+然而，有一些简化被忽略了。看一下如果我们添加一个双重否定会如何：
+```ocaml
+# simplify (Not (And [ Or [Base "it's snowing"; Const true];
+                       Not (Not (Base "it's raining"))]));;
+- : string expr = Not (Not (Not (Base "it's raining")))
+
+(* OCaml Utop ∗ variants/blang.topscript , continued (part 7) ∗ all code *)
+```
+它未能移除双重否定，原因显而易见。`not_`函数有一个笼统分支，所以除了它会显式处理的以外（即一个常量取反），它会忽略一切。笼统分支通常都不是个好主意，代码写出的细节越多，双重否定处理的缺失就越明显：
+```ocaml
+# let not_ = function
+    | Const b -> Const (not b)
+    | (Base _ | And _ | Or _ | Not _) as e -> Not e
+  ;;
+val not_ : 'a expr -> 'a expr = <fun>
+
+(* OCaml Utop ∗ variants/blang.topscript , continued (part 8) ∗ all code *)
+```
+当然我们可以简单添加一个处理双重否定的分支来解决此问题：
+```ocaml
+# let not_ = function
+    | Const b -> Const (not b)
+    | Not e -> e
+    | (Base _ | And _ | Or _ ) as e -> Not e
+  ;;
+val not_ : 'a expr -> 'a expr = <fun>
+
+(* OCaml Utop ∗ variants/blang.topscript , continued (part 9) ∗ all code *)
+```
+布尔达式的例子可不仅仅是个玩具。Core中有一个很类似的模块叫`Blang`（“Boolean language”的缩写），它在很多应用中都广泛使用。简化算法很有用，特别是在一些基本谓词已知的情况下，你想用其来研究表达式的求值时。
+
+更一般地，用变体构建递归数据结构是一个常用技术，从设计小语言到构造复杂数据结构，到处都在使用。
+
+### 多态变体
+除了我们已经见到的普通变体，OCaml还支持多态变体。我们将会看到，多态变体更灵活，语法上也比普通变体强大，但额外的功能必然也有额外的代价。
+
+语法上讲，多态变体以前导的撇号和普通变体相区别。且和普通变体不同，多态变体没有显式的类型声明也可以使用：
+```ocaml
+# let three = `Int 3;;
+val three : [> `Int of int ] = `Int 3
+# let four = `Float 4.;;
+val four : [> `Float of float ] = `Float 4.
+# let nan = `Not_a_number;;
+val nan : [> `Not_a_number ] = `Not_a_number
+# [three; four; nan];;
+- : [> `Float of float | `Int of int | `Not_a_number ] list =
+[`Int 3; `Float 4.; `Not_a_number]
+(* OCaml Utop ∗ variants/main.topscript , continued (part 6) ∗ all code *)
+```
+如你所见，多态变体类型可以被自动推导，当我们把多个不同标签的变体组合在一起时，编译器会推导出一个新类型，这个类型可以知道所有这些标签。注意，在上面的例子中，标签名（如`` `Int``）和类型名(`int`)是匹配的。这在OCaml中是个常见的惯例。
+
+同一个标签以不兼容的方式使用时，编译器会指出：
+```ocaml
+# let five = `Int "five";;
+val five : [> `Int of string ] = `Int "five"
+# [three; four; five];;
+Characters 14-18:
+Error: This expression has type [> `Int of string ]
+       but an expression was expected of type
+         [> `Float of float | `Int of int ]
+       Types for tag `Int are incompatible
+
+(* OCaml Utop ∗ variants/main.topscript , continued (part 7) ∗ all code *)
+```
+开头的`>`是必须是，因为它标明这个类型是开发的，可以其它变体类型组合。我们可以将`` [> `Int of string | `Float of float]``这样解读，描述了一个标签为`` `Int of string``和`` `Float of float``的变体类型，但还可以包含更多的标签。换句话说，你可以简单地把`>`当作“这些或更多标签”。
+
+有些情况下OCaml会推导出带`<`的类型，表示“这些或更少的标签”，如下所示：
+```ocaml
+# let is_positive = function
+     | `Int   x -> x > 0
+     | `Float x -> x > 0.
+  ;;
+val is_positive : [< `Float of float | `Int of int ] -> bool = <fun>
+
+(* OCaml Utop ∗ variants/main.topscript , continued (part 8) ∗ all code *)
+```
+有`<`是因为`is_positive`无法处理含有`` `Float of float`` 或`` `Int of int``以外标签的值。
+
+我们可以把这些`<`和`>`标记看作已包含的标签的上下边界。如果标签集即是上边界又是下边界，我们就得到了一个确切的多态变体类型，什么标记都没有。例如：
+```ocaml
+# let exact = List.filter ~f:is_positive [three;four];;
+val exact : [ `Float of float | `Int of int ] list = [`Int 3; `Float 4.]
+
+(* OCaml Utop ∗ variants/main.topscript , continued (part 9) ∗ all code *)
+```
+这可能今人吃惊，我们也可以创建有不同上下边界的多态变体类型。注意下例中的`Ok`和`Error`来自Core中的`Result.t`类型：
+```ocaml
+# let is_positive = function
+     | `Int   x -> Ok (x > 0)
+     | `Float x -> Ok (x > 0.)
+     | `Not_a_number -> Error "not a number";;
+val is_positive :
+  [< `Float of float | `Int of int | `Not_a_number ] ->
+  (bool, string) Result.t = <fun>
+# List.filter [three; four] ~f:(fun x ->
+     match is_positive x with Error _ -> false | Ok b -> b);;
+- : [< `Float of float | `Int of int | `Not_a_number > `Float `Int ] list =
+[`Int 3; `Float 4.]
+
+(* OCaml Utop ∗ variants/main.topscript , continued (part 10) ∗ all code *)
+```
+这里，推导出来类型表示标签不能多于`` `Float`` 、`` `Int``和`` `Not_a_number``，但又必须包含`` `Float``和`` `Int``。你已经看到了，多态变体可能会导致异常复杂的推导类型。
+
+#### 例子：再看终端颜色
 #### When to Use Polymorphic Variants
