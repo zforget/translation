@@ -579,4 +579,134 @@ val is_positive :
 这里，推导出来类型表示标签不能多于`` `Float`` 、`` `Int``和`` `Not_a_number``，但又必须包含`` `Float``和`` `Int``。你已经看到了，多态变体可能会导致异常复杂的推导类型。
 
 #### 例子：再看终端颜色
+现在看一下实践中如何使用多态变体，我们回过头来看一下终端颜色的例子。假设我们有一个新的添加了更多颜色的终端颜色类型，添加alpha通道，使你可以指定颜色的透明度。我们可以使用普通变体像下面这样对这个颜色集建模：
+```ocaml
+# type extended_color =
+    | Basic of basic_color * weight  (* basic colors, regular and bold *)
+    | RGB   of int * int * int       (* 6x6x6 color space *)
+    | Gray  of int                   (* 24 grayscale levels *)
+    | RGBA  of int * int * int * int (* 6x6x6x6 color space *)
+  ;;
+type extended_color = 
+    Basic of basic_color * weight 
+  | RGB of int * int * int 
+  | Gray of int 
+  | RGBA of int * int * int * int
+
+(* OCaml Utop ∗ variants/main.topscript , continued (part 11) ∗ all code *)
+```
+我们想要写一个`extended_color_to_int`函数，对老类型作用和`color_to_int`一样，只是添加了处理包含alpha通道颜色的新逻辑。有人可能会写出下面的代码：
+```ocaml
+# let extended_color_to_int = function
+    | RGBA (r,g,b,a) -> 256 + a + b * 6 + g * 36 + r * 216
+    | (Basic _ | RGB _ | Gray _) as color -> color_to_int color
+  ;;
+Characters 154-159: Error: This expression has type extended_color but an expression was expected of type color
+
+(* OCaml Utop ∗ variants/main.topscript , continued (part 12) ∗ all code *)
+```
+代码看起来挺合理，但是它会引起类型错误，因为在编译器看来，`extended_color`和`color`是两个不同的没有关系的类型。编译器不会识别两个类型中相同的基本标签。
+
+我们想要做的就是在两个不同变体类型之间共享标签，而多态变体正好可以以一种自然的方式做到这一点。首先，我们用多态变体重写`basic_color_to_int`和`color_to_int`。转换相当直接：
+```ocaml
+# let basic_color_to_int = function
+    | `Black -> 0 | `Red     -> 1 | `Green -> 2 | `Yellow -> 3
+    | `Blue  -> 4 | `Magenta -> 5 | `Cyan  -> 6 | `White  -> 7
+
+  let color_to_int = function
+    | `Basic (basic_color,weight) ->
+      let base = match weight with `Bold -> 8 | `Regular -> 0 in
+      base + basic_color_to_int basic_color
+    | `RGB (r,g,b) -> 16 + b + g * 6 + r * 36
+    | `Gray i -> 232 + i
+ ;;
+val basic_color_to_int : 
+  [< `Black | `Blue | `Cyan | `Green | `Magenta | `Red | `White | `Yellow ] -> 
+  int = <fun> 
+val color_to_int : 
+  [< `Basic of 
+      [< `Black 
+       | `Blue 
+       | `Cyan 
+       | `Green 
+       | `Magenta 
+       | `Red 
+       | `White 
+       | `Yellow ] * 
+      [< `Bold | `Regular ] 
+  | `Gray of int 
+  | `RGB of int * int * int ] -> 
+  int = <fun>
+
+(* OCaml Utop ∗ variants/main.topscript , continued (part 13) ∗ all code *)
+```
+现在我们可以尝试写`extended_color_to_int`了。代码的关键是`extended_color_to_int`要以窄化的类型（即更少的标签）调用`color_to_int`。正常来讲，这种窄化可以使用模式匹配来完成。下面的代码中，`color`变量只包含`` `Basic``、`` `RGB``和`` `Gray``标签，而不包含`` `RGBA``标签：
+```ocaml
+# let extended_color_to_int = function
+    | `RGBA (r,g,b,a) -> 256 + a + b * 6 + g * 36 + r * 216
+    | (`Basic _ | `RGB _ | `Gray _) as color -> color_to_int color
+  ;;
+val extended_color_to_int :
+  [< `Basic of 
+       [< `Black 
+        | `Blue 
+        | `Cyan 
+        | `Green 
+        | `Magenta 
+        | `Red 
+        | `White 
+        | `Yellow ] * 
+       [< `Bold | `Regular ] 
+  | `Gray of int 
+  | `RGB of int * int * int 
+  | `RGBA of int * int * int * int ] -> 
+  int = <fun>
+
+(* OCaml Utop ∗ variants/main.topscript , continued (part 14) ∗ all code *)
+```
+上面的代码比通常想像的都要平衡。实际上，如果我们用一个笼统的分支代替显式的枚举，那么类型就不会被窄化，编译就会失败：
+```ocaml
+# let extended_color_to_int = function
+    | `RGBA (r,g,b,a) -> 256 + a + b * 6 + g * 36 + r * 216
+    | color -> color_to_int color
+  ;;
+Characters 125-130: 
+Error: This expression has type [> `RGBA of int * int * int * int ] 
+       but an expression was expected of type 
+         [< `Basic of 
+              [< `Black 
+               | `Blue 
+               | `Cyan 
+               | `Green 
+               | `Magenta 
+               | `Red 
+               | `White 
+               | `Yellow ] * 
+               [< `Bold | `Regular ] 
+         | `Gray of int 
+         | `RGB of int * int * int ] 
+       The second variant type does not allow tag(s) `RGBA
+
+(* OCaml Utop ∗ variants/main.topscript , continued (part 15) ∗ all code *)
+```
 #### When to Use Polymorphic Variants
+> **多态变体和笼统分支(catch-all cases)**
+> 
+> 之前见到的`is_positive`定义中，`match`语句导致推导出一个有上边界的变体类型，限制了匹配可以处理的标签。如果我们在`match`语句上添加一个笼统分支，就会得到一个有下边界的类型：
+> ```ocaml
+> # let is_positive_permissive = function
+>     | `Int   x -> Ok (x > 0)
+>     | `Float x -> Ok (x > 0.)
+>     | _ -> Error "Unknown number type"
+>  ;;
+> val is_positive_permissive : [> `Float of float | `Int of int ] -> (bool, string)  Result.t = <fun>
+> # is_positive_permissive (`Int 0);;
+> - : (bool, string) Result.t = Ok false
+> # is_positive_permissive (`Ratio (3,4));;
+> - : (bool, string) Result.t = Error "Unknown number type"
+>
+> OCaml Utop ∗ variants/main.topscript , continued (part 16) ∗ all code
+> ```
+> 即使是使用普通变体，笼统分支也是滋生错误的温床，但是和多态变体一起使用时，这个问题尤为严重。
+> Catch-all cases are error-prone even with ordinary variants, but they are especially so with polymorphic variants. That's because you have no way of bounding what tags your function might have to deal with. Such code is particularly vulnerable to typos. For instance, if code that uses is_positive_permissive passes in Float misspelled as Floot, the erroneous code will compile without complaint:
+>
