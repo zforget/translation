@@ -715,7 +715,7 @@ Error: This expression has type [> `RGBA of int * int * int * int ]
 > ```
 > 使用普通变体，这种输入错误会导致一个不识别的标签。通常，混合使用笼统分支和多态变体时都要格外小心。、
 
-说我们来考虑一下如何把我们的代码装进一个合适的库，实现在ml文件中，接口在单独的mli文件中，就和[第四章，文件、模块和程序](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_04_files_modules_and_programs.md)中看到的那样。让我们从mli文件开始：
+对在让我们来考虑一下如何把我们的代码装进一个合适的库，实现在ml文件中，接口在单独的mli文件中，就和[第四章，文件、模块和程序](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_04_files_modules_and_programs.md)中看到的那样。让我们从mli文件开始：
 ```ocaml
 open Core.Std
 
@@ -772,7 +772,7 @@ let extended_color_to_int = function
 
 (* OCaml ∗ variants-termcol/terminal_color.ml ∗ all code *)
 ```
-在上面的代码中，定义`extended_color_to_int`时我们做了一些有趣的事来暴露多态变体的劣势。我们添加了一个特别的分支来处理灰色，而不是使用`color_to_int`。但不幸的是，我们把`Gray`误拼作了`Grey`。使用普通变体时编译器显然应该会捕捉到这个错误，但是使用多态变体，编译没有任何问题。发生所有的不同就是编译器为`extended_color_to_int`推导出一个更宽的类型，它恰好与mli文件中列出的较窄的类型兼容。
+在上面的代码中，定义`extended_color_to_int`时我们做了一些有趣的事来暴露多态变体的劣势。我们添加了一个特别的分支来处理灰色，而不是使用`color_to_int`。但不幸的是，我们把`Gray`误拼成了`Grey`。使用普通变体时编译器显然应该会捕捉到这个错误，但是使用多态变体，编译没有任何问题。所有的不同就是编译器为`extended_color_to_int`推导出了一个更宽的类型，它恰好与mli文件中列出的较窄的类型兼容。
 
 如果我们给代码添加一个类型注释（不仅是在mli中），那么编译器就会有足够的信息来警告我们了：
 ```ocaml
@@ -781,7 +781,7 @@ let extended_color_to_int : extended_color -> int = function
   | `Grey x -> 2000 + x
   | (`Basic _ | `RGB _ | `Gray _) as color -> color_to_int color
 ```
-这样编译器会报怨`` `Grey``分支没有使用：
+这样编译器就会报怨`` `Grey``分支没有使用：
 ```bash
 $ corebuild terminal_color.native
 File "terminal_color.ml", line 30, characters 4-11:
@@ -800,24 +800,22 @@ let extended_color_to_int : extended_color -> int = function
 当你想要窄化一个定义很长的类型时，这就有用了，你绝不想在匹配中啰唆地显式重写这些标签。
 
 #### 何时使用多态变体
-乍一看，多态变体绝对是普通变体的升级版。你可以做普通变体能做的任何事，还更于灵活更优雅。还有什么理由不喜欢它呢？
+乍一看，多态变体绝对是普通变体的升级版。你可以做普通变体能做的任何事，还更灵活更简洁。还有什么理由不喜欢它呢？
 
 实际上，多数时候普通变体才是更实际的选择。因为多态变体的灵活性是有代价的。下面是一些缺点：
 
-复杂性
+- 复杂性
+  
+   正如我们所见，多态变体的类型规则比普通变体要复杂得多。这意味着重度使用多态会让你在查看为什么一段代码为什么能或不能编译时抓狂。也会使错误消息冗长并难以解读。实际上，值层面上的简洁往往是牺牲了类型层面的复杂性。
+- 错误查找
 
-正如我们所见，多态变体的类型规则比普通变体要复杂得多。这意味着重度使用多态会让你在查看为什么一段代码为什么能或不能编译时抓狂。也会使错误消息冗长并难以解读。
+  多态类型是类型安全的，但是需要小心输入，其灵活性使它不容易捕捉你程序中的bug。
+- 效率
 
-    As we've seen, the typing rules for polymorphic variants are a lot more complicated than they are for regular variants. This means that heavy use of polymorphic variants can leave you scratching your head trying to figure out why a given piece of code did or didn't compile. It can also lead to absurdly long and hard to decode error messages. Indeed, concision at the value level is often balanced out by more verbosity at the type level.
-Error-finding
+  这一点影响不是非常大，但多态变体会比普通变体重一些，OCaml不能给多态类型的模式匹配生成和普通变体那样就效的代码。
 
-    Polymorphic variants are type-safe, but the typing discipline that they impose is, by dint of its flexibility, less likely to catch bugs in your program.
-Efficiency
+就是说，多态变体仍然是有用的强大的特性，但理解其局限性并搞清楚如何明智且慬慎地使用它们是值得的。
 
-    This isn't a huge effect, but polymorphic variants are somewhat heavier than regular variants, and OCaml can't generate code for matching on polymorphic variants that is quite as efficient as what it generated for regular variants.
+可能最安全也是最常见的多态变体使用场景是普通变体也足够但却太重量级时。比如，你经常想要创建一个变体类型来编码输入或输出，又不值得为这声明一个单独的类型。这时多态类型就非常有用了，和使用类型注释把它们限制到显式的、明确的类型上一样，都可以很好地工作。
 
-All that said, polymorphic variants are still a useful and powerful feature, but it's worth understanding their limitations and how to use them sensibly and modestly.
-
-Probably the safest and most common use case for polymorphic variants is where ordinary variants would be sufficient but are syntactically too heavyweight. For example, you often want to create a variant type for encoding the inputs or outputs to a function, where it's not worth declaring a separate type for it. Polymorphic variants are very useful here, and as long as there are type annotations that constrain these to have explicit, exact types, this tends to work well.
-
-Variants are most problematic exactly where you take full advantage of their power; in particular, when you take advantage of the ability of polymorphic variant types to overlap in the tags they support. This ties into OCaml's support for subtyping. As we'll discuss further when we cover objects in Chapter 11, Objects, subtyping brings in a lot of complexity, and most of the time, that's complexity you want to avoid.
+变体最有问题的地方也是其最强大的地方；特别是当你使用多态变体支持标签重叠的功能时。这涉及OCaml对子类化的支持。正如我们将在[第11章，对象](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_11_objects.md)中讨论的那样，子类化带来许多复杂性，多数时候，这种复杂性是应该避免的。
