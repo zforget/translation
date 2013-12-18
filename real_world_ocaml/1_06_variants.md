@@ -800,3 +800,24 @@ let extended_color_to_int : extended_color -> int = function
 当你想要窄化一个定义很长的类型时，这就有用了，你绝不想在匹配中啰唆地显式重写这些标签。
 
 #### 何时使用多态变体
+乍一看，多态变体绝对是普通变体的升级版。你可以做普通变体能做的任何事，还更于灵活更优雅。还有什么理由不喜欢它呢？
+
+实际上，多数时候普通变体才是更实际的选择。因为多态变体的灵活性是有代价的。下面是一些缺点：
+
+复杂性
+
+正如我们所见，多态变体的类型规则比普通变体要复杂得多。这意味着重度使用多态会让你在查看为什么一段代码为什么能或不能编译时抓狂。也会使错误消息冗长并难以解读。
+
+    As we've seen, the typing rules for polymorphic variants are a lot more complicated than they are for regular variants. This means that heavy use of polymorphic variants can leave you scratching your head trying to figure out why a given piece of code did or didn't compile. It can also lead to absurdly long and hard to decode error messages. Indeed, concision at the value level is often balanced out by more verbosity at the type level.
+Error-finding
+
+    Polymorphic variants are type-safe, but the typing discipline that they impose is, by dint of its flexibility, less likely to catch bugs in your program.
+Efficiency
+
+    This isn't a huge effect, but polymorphic variants are somewhat heavier than regular variants, and OCaml can't generate code for matching on polymorphic variants that is quite as efficient as what it generated for regular variants.
+
+All that said, polymorphic variants are still a useful and powerful feature, but it's worth understanding their limitations and how to use them sensibly and modestly.
+
+Probably the safest and most common use case for polymorphic variants is where ordinary variants would be sufficient but are syntactically too heavyweight. For example, you often want to create a variant type for encoding the inputs or outputs to a function, where it's not worth declaring a separate type for it. Polymorphic variants are very useful here, and as long as there are type annotations that constrain these to have explicit, exact types, this tends to work well.
+
+Variants are most problematic exactly where you take full advantage of their power; in particular, when you take advantage of the ability of polymorphic variant types to overlap in the tags they support. This ties into OCaml's support for subtyping. As we'll discuss further when we cover objects in Chapter 11, Objects, subtyping brings in a lot of complexity, and most of the time, that's complexity you want to avoid.
