@@ -49,7 +49,45 @@ val find_mismatches : ('a, 'b) Hashtbl.t -> ('a, 'b) Hashtbl.t -> 'a list =
 使用`option`编码错误凸显了这样一个事实：一个特定的结果，如在列表中没有找到某元素，是一个错误还是一个合理的结果，这一点并不明确。这依赖于你程序中更大的上下文，是一个通用库无法预知的。带错误的返回值的优势就在于两种情况它都适用。
 
 #### 编码错误和结果
-#### Error and Or_error
+`option`在报告错误方面不总是有足够的表达力。特别是当你把一个错误编码成`None`时，就没有地方来说明错误的性质了。
+
+`Result.t`就是为了解决此不足的。类型定义如下：
+```ocaml
+module Result : sig
+   type ('a,'b) t = | Ok of 'a
+                    | Error of 'b
+end
+```
+`Result.t`本质上是一个参数化的`option`，给错误实例赋于存储其它信息的能力。像`Some`和`None`一样，构造器`Ok`和`Error`由`Core.Std`提升到顶层作用域。因此，我们可以这样写：
+```ocaml
+# [ Ok 3; Error "abject failure"; Ok 4 ];;
+- : (int, string) Result.t list = [Ok 3; Error "abject failure"; Ok 4]
+```
+而不需要先打开`Result`模块。
+
+#### `Error`和`Or_error`
+`Result.t`给了你完全的自由来选择错误值的类型，但通常规范错误类型是有用的。别的不说，它会简化自动化通用错误处理模式的工具函数。
+
+但选什么类型呢？把错误表示为字符串会更好呢？还是像XML这样更加结构化的表达？或者其它的什么？
+
+`Core`的答案是`Error.t`类型，它试图在效率、方便性和对错误表达的控制力之间取得一个很好的平衡。
+
+效率问题一开始并不明显。但生成错误消息是很昂贵的。一个值的ASCII表达可能相当耗时，特别是它包含不易转换的数值数据时。
+
+`Error`使用惰性求值避开了这个问题，`Error.t`允许你推迟错误生成除非你需要它，这就意味着很多时候你根本不需要去构造它。当然你也可以直接从一个字符串构造一个错误：
+```ocaml
+# Error.of_string "something went wrong";;
+- : Error.t = something went wrong
+```
+但你也可以从一个形实转换程序（thunk）构造`Error.t`，即，一个接收单独一个`unit`类型参数的函数：
+```ocaml
+# Error.of_thunk (fun () ->
+    sprintf "something went wrong: %f" 32.3343);;
+- : Error.t = something went wrong: 32.334300
+```
+这时，我们就可以从`Error`的惰性求值获益，因为除非`Error.t`被转换为字符串，否则形实转换程序不会被调用。
+
+
 #### bind and Other Error Handling Idioms
 
 ### Exceptions
