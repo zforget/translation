@@ -79,13 +79,13 @@ end
 # Error.of_string "something went wrong";;
 - : Error.t = something went wrong
 ```
-但你也可以从一个形实转换程序（thunk）构造`Error.t`，即，一个接收单独一个`unit`类型参数的函数：
+但你也可以从一个代码块（thunk）构造`Error.t`，即，一个接收单独一个`unit`类型参数的函数：
 ```ocaml
 # Error.of_thunk (fun () ->
     sprintf "something went wrong: %f" 32.3343);;
 - : Error.t = something went wrong: 32.334300
 ```
-这时，我们就可以从`Error`的惰性求值获益，因为除非`Error.t`被转换为字符串，否则形实转换程序不会被调用。
+这时，我们就可以从`Error`的惰性求值获益，因为除非`Error.t`被转换为字符串，否则代码块不会被调用。
 
 创建`Error.t`最常用的方式是使用S-表达式。S-表达式是一个由小括号包围的表达式，表达式的叶子是字符串。这里有一个简单例子：
 ```scheme
@@ -208,12 +208,159 @@ val exceptions : exn list = [Not_found; Division_by_zero; Key_not_found("b")]
     | _ -> false);;
 - : exn list = [Not_found; Key_not_found("b")]
 ```
-异常都是同一个类型的，`exn`。`exn`类型是OCaml类型系统中的特例。它和我们[第六章](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_06_variants.md)遇到的变体类似，但前者是*开放的*，就是说它没有在任何地方都没有其完整定义。新的标签（即新的异常）可以在程序的任何地方添加进来。这和普通变体不同，后者把可用标签定义在一个封闭域里。一个结果就是你永远都不会完整匹配`exn`类型，因为可能的异常全集是未知的。
+异常都是同一个类型的，`exn`。`exn`类型是OCaml类型系统中的特例。它和我们[第六章](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_06_variants.md)遇到的变体类似，但前者是*开放的*，就是说任何地方都没有其完整定义。新的标签（即新的异常）可以在程序的任何地方添加进来。这和普通变体不同，后者把可用标签定义在一个封闭域里。一个结果就是你永远都不会完整匹配`exn`类型，因为可能的异常全集是未知的。
 
-#### Helper Functions for Throwing Exceptions
-#### Exception Handlers
-#### Cleaning Up in the Presence of Exceptions
-#### Catching Specific Exceptions
+下面的函数使用我们之前定义的`Key_not_found`异常发射一个错误：
+```ocaml
+# let rec find_exn alist key = match alist with
+    | [] -> raise (Key_not_found key)
+    | (key',data) :: tl -> if key = key' then data else find_exn tl key
+  ;;
+val find_exn : (string * 'a) list -> string -> 'a = <fun>
+# let alist = [("a",1); ("b",2)];;
+val alist : (string * int) list = [("a", 1); ("b", 2)]
+# find_exn alist "a";;
+- : int = 1
+# find_exn alist "c";;
+Exception: Key_not_found("c").
+```
+注意我们把函数命名成`find_exn`是为了提醒使用者这个函数会抛出异常，这个惯用法在Core中使用很广。
+
+上面的例子中，`raise`抛出异常，因此也终止了计算。`raise`类型乍一看很令人吃惊：
+```ocaml
+# raise;;
+- : exn -> 'a = <fun>
+```
+返回类型`'a`，看起来像是`raise`生成一个类型完全不受约束的返回值。这看起来是不可能的，也确实是不可能的。实际上，`raise`返回类型`'a`是因为它从不返回。这种行为不限于像`raise`这样通过抛异常终止的函数。下面例子是另一个不返回的函数：
+```ocaml
+# let rec forever () = forever ();;
+val forever : unit -> 'a = <fun>
+```
+`forever`不返回的原因不同：它是一个无限循环。
+
+这很重要，因为这意味着`raise`的返回类型可以是任何适应调用上下文的类型。因此，类型系统才可能允许我们在程序任何地方抛出异常。
+
+> **使用`sexp`声明异常**
+>
+> OCaml并不总能为一个异常生成有用的文本表达。如：
+> ```ocaml
+> # exception Wrong_date of Date.t;;
+> exception Wrong_date of Date.t
+> # Wrong_date (Date.of_string "2011-02-23");;
+> - : exn = Wrong_date(_)
+> ```
+> 但是如果我们使用`sexp`（以及有`sexp`转换器的类型）来声明异常，就可以协带更多的信息：
+> ```ocaml
+> # exception Wrong_date of Date.t with sexp;;
+> exception Wrong_date of Date.t
+> # Wrong_date (Date.of_string "2011-02-23");;
+> - : exn = (//toplevel//.Wrong_date 2011-02-23)
+> ```
+> `Wong_date`前面有句号是因为`sexp`生成的的表示包含定义异常的模块的全路径。本例中，字符串`//toplevel//`表示异常是在toplevel中而不是一个模块中定义的。
+>
+> 这些都是`Sexplib`库和语法扩展对S表达式支持的一部分，在[17章](https://github.com/zforget/translation/blob/master/real_world_ocaml/2_17_data_serialization_with_s_expressions.md)会描述更多细节。
+
+#### 抛出异常的辅助函数
+OCaml和Core都提供了一些辅助函数来简化抛出异常的操作。最简单的一个是`failwith`，可以像下面这样定义：
+```ocaml
+# let failwith msg = raise (Failure msg);;
+val failwith : string -> 'a = <fun>
+```
+还有好几个其它有用的函数可以用于抛出异常，可以在Core的`Common`和`Exn`模块的API文档中找到。
+
+另一个抛异常的重要方法是`assert`指令。`assert`用在违反一定条件即视为bug的情形。考虑下面压缩两个列表的代码片：
+```ocaml
+# let merge_lists xs ys ~f =
+    if List.length xs <> List.length ys then None
+    else
+      let rec loop xs ys =
+        match xs,ys with
+        | [],[] -> []
+        | x::xs, y::ys -> f x y :: loop xs ys
+        | _ -> assert false
+      in
+      Some (loop xs ys)
+  ;;
+val merge_lists : 'a list -> 'b list -> f:('a -> 'b -> 'c) -> 'c list option =
+<fun>
+# merge_lists [1;2;3] [-1;1;2] ~f:(+);;
+- : int list option = Some [0; 3; 5]
+# merge_lists [1;2;3] [-1;1] ~f:(+);;
+- : int list option = None
+```
+我们使用`assert false`，意味着`assert`一定会触发。通常，断言里可以使用任何条件。
+
+本例中，`assert`永远都不会触发，因为我们在调用`loop`之前已经做了检查，确保两个列表长度相同。如果我们修改代码，去掉这个测试，就可以触发`assert`了：
+```ocaml
+# let merge_lists xs ys ~f =
+    let rec loop xs ys =
+      match xs,ys with
+      | [],[] -> []
+      | x::xs, y::ys -> f x y :: loop xs ys
+      | _ -> assert false
+    in
+    loop xs ys
+;;
+val merge_lists : 'a list -> 'b list -> f:('a -> 'b -> 'c) -> 'c list = <fun>
+# merge_lists [1;2;3] [-1] ~f:(+);;
+Exception: (Assert_failure //toplevel// 5 13).
+```
+这里展示了`assert`的一个特性：它可以捕获断言在源代码中的行数和列数。
+
+#### 异常处理器
+目前为止，我们见到的异常都是完全终止了计算的执行。但我们经常想要能响应异常并能从中恢复。这是通过*异常处理器*实现的。
+
+在OCaml中，异常处理器由`try/with`语句声明。下面是基本语法.
+```ocaml
+try <expr> with
+| <pat1> -> <expr1>
+| <pat2> -> <expr2>
+...
+```
+`try/with`子句先求值其主体，`expr`。如果没有异常抛出，求值主体的结果就是整个`try/with`子句的值。
+
+但如果求值主体是抛出了一个异常，这个异常会被喂给`with`后的模式匹配语句。如果它匹配了一个模式，我们就认为异常被捕获了，`try/with`子句就会求值模式后面的表达式。
+
+否则，原始的异常会沿着函数调用栈向用上传播，由下一个外围处理器处理。如果异常最终没有被捕获，它会终止程序。
+
+#### 清理异常现场
+异常一个令人头疼的地方是它可能会在意想不到的地方终止你的程序，使你的程序处于危险状态。考虑下面函数，加载一个全是提醒的文件，格式化成S表达式：
+```ocaml
+# let reminders_of_sexp =
+    <:of_sexp<(Time.t * string) list>>
+  ;;
+val reminders_of_sexp : Sexp.t -> (Time.t * string) list = <fun>
+# let load_reminders filename =
+    let inc = In_channel.create filename in
+    let reminders = reminders_of_sexp (Sexp.input_sexp inc) in
+    In_channel.close inc;
+    reminders
+  ;;
+val load_reminders : string -> (Time.t * string) list = <fun>
+```
+这段代码的问题是这个函数加载S表达式并将其解析成一个`Time.t/string`序对列表，在文件格式畸形时可能会抛异常。不幸的是，这意味着打开的`In_chnnel.t`永远都不会关闭了，这会导致文件描述符泄漏。
+
+我们可以使用Core中的`protect`函数修正此问题，它接收两个参数：一个代码块`f`，是要进行的计算的主体；一个是代码块`finally`，在`f`退出时调用，无论是正常退出还是异常退出。这和许多编程语言中的`try/finally`结构类似，但OCaml中是库实现的，而不是内建原语。下面就是如何使用它来修正`load_reminders`:
+```ocaml
+# let load_reminders filename =
+    let inc = In_channel.create filename in
+    protect ~f:(fun () -> reminders_of_sexp (Sexp.input_sexp inc))
+      ~finally:(fun () -> In_channel.close inc)
+  ;;
+val load_reminders : string -> (Time.t * string) list = <fun>
+```
+这个问题很常见，`In_channel`中有一个叫`with_file`的函数可以自动完成这个模式：
+```ocaml
+# let reminders_of_sexp filename =
+    In_channel.with_file filename ~f:(fun inc ->
+      reminders_of_sexp (Sexp.input_sexp inc))
+  ;;
+val reminders_of_sexp : string -> (Time.t * string) list = <fun>
+```
+`In_channel.with_file`构建在`protect`之上，所以在发生异常会自己清理。
+
+#### 捕捉特定异常
+
 #### Backtraces
 #### From Exceptions to Error-Aware Types and Back Again
 
