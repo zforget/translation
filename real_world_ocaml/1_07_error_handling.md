@@ -208,6 +208,7 @@ val exceptions : exn list = [Not_found; Division_by_zero; Key_not_found("b")]
     | _ -> false);;
 - : exn list = [Not_found; Key_not_found("b")]
 ```
+异常都是同一个类型的，`exn`。`exn`类型是OCaml类型系统中的特例。它和我们[第六章](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_06_variants.md)遇到的变体类似，但前者是*开放的*，就是说它没有在任何地方都没有其完整定义。新的标签（即新的异常）可以在程序的任何地方添加进来。这和普通变体不同，后者把可用标签定义在一个封闭域里。一个结果就是你永远都不会完整匹配`exn`类型，因为可能的异常全集是未知的。
 
 #### Helper Functions for Throwing Exceptions
 #### Exception Handlers
