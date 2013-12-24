@@ -99,7 +99,7 @@ Something failed a long time ago: (1970-01-01 01:00:00.000000+01:00)
 ```
 注意，错误在被打印之前是不会真正序列化成S-表达式的。
 
-这种错误报告并不只局限于内建类型。这会在[第17章](#第17章)讨论，但是`Sexplib`带了一个语言扩展，可以为新创建的类型自动生成`sexp`转换器：
+这种错误报告并不只局限于内建类型。这会在[第17章](https://github.com/zforget/translation/blob/master/real_world_ocaml/2_17_data_serialization_with_s_expressions.md)讨论，但是`Sexplib`带了一个语言扩展，可以为新创建的类型自动生成`sexp`转换器：
 ```ocaml
 # let custom_to_sexp = <:sexp_of<float * string list * int>>;;
 val custom_to_sexp : float * string list * int -> Sexp.t = <fun>
@@ -146,7 +146,7 @@ val bind : 'a option -> ('a -> 'b option) -> 'b option = <fun>
 val compute_bounds : cmp:('a -> 'a -> int) -> 'a list -> ('a * 'a) option =
 <fun>
 ```
-在语法层面上，上面的代码有点晦涩。我们可以通过使用`bind`的中缀操作符形式来去掉括号以使代码更易读，中缀操作符通过局部打开`Option.Monad_infix`访问。模块名叫`Monad_infix`是因为`bind`操作符是`Monad`子接口的一部分，我们会在[第18章](#第18章)再次讨论:
+在语法层面上，上面的代码有点晦涩。我们可以通过使用`bind`的中缀操作符形式来去掉括号以使代码更易读，中缀操作符通过局部打开`Option.Monad_infix`访问。模块名叫`Monad_infix`是因为`bind`操作符是`Monad`子接口的一部分，我们会在[第18章](https://github.com/zforget/translation/blob/master/real_world_ocaml/2_18_concurrent_programming_with_async.md)再次讨论:
 ```ocaml
 # let compute_bounds ~cmp list =
     let open Option.Monad_infix in

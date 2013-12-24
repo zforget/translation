@@ -1,5 +1,5 @@
 ## 第三章 列表和模式
-本章会聚焦于OCaml中两个常用编程元素：列表和模式匹配。在[第一章导览](#导览)中对它们都有过介绍，但这里我们会更深入，把这两个概念放在一起，并用一个来帮助诠释另一个。
+本章会聚焦于OCaml中两个常用编程元素：列表和模式匹配。在[第一章导览](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_01_a_guide_tour.md)中对它们都有过介绍，但这里我们会更深入，把这两个概念放在一起，并用一个来帮助诠释另一个。
 
 ### 列表基础
 OCaml的列表中不可变的、有限的同类型元素序列。如我们所见，OCaml列表可以使用方括号和分号来创建。
@@ -233,7 +233,7 @@ Here is an example of a value that is not matched:
 
 (* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 13) ∗ all code *)
 ```
-即使在这么简单的例子中，不完整检查也是非常有用的。但是在[第6章变量](#变量)中，碰到更复杂的例子时，它们会变得更有价值，特别是涉及用户自定义类型时。除了捕捉直接错误，它们还可以作为一种重构工具，指导你找到需要调整的位置，以使你的代码可以应对类型的变化。
+即使在这么简单的例子中，不完整检查也是非常有用的。但是在[第6章变体](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_06_variants.md)中，碰到更复杂的例子时，它们会变得更有价值，特别是涉及用户自定义类型时。除了捕捉直接错误，它们还可以作为一种重构工具，指导你找到需要调整的位置，以使你的代码可以应对类型的变化。
 
 ### 高效使用`List`模块
 现在我们已经使用模式匹配和递归函数写了大量列表处理代码。但在现实中，你通常最好应该使用`List`模块，它里面有许多可重用的函数，它们抽象出一些列表计算的通用模式。
@@ -421,7 +421,7 @@ val render_table : string list -> string list list -> string = <fun>
 
 (* OCaml Utop ∗ lists-and-patterns/main.topscript , continued (part 29) ∗ all code *)
 ```
-注意上面的`mod`是一个中缀操作符，在[第2章变量和函数](#变量和函数)中有描述。
+注意上面的`mod`是一个中缀操作符，在[第2章变量和函数](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_02_variables_and_functions.md)中有描述。
 
 有时，你会想在一个操作中同时进行遍历和过滤操作。此时，你需要`List.filter_map`。传给`List.filter_map`的函数返回一个`option`值，`List.filter_map`会丢弃所有返回`None`的元素。
 
@@ -566,7 +566,7 @@ val length : 'a list -> int = <fun>
 尾递归在许多情况下都很重要，而不仅限于列表。在处理像二叉树这样树的深度是你数据大小的对数时，使用普通递归（非尾递归）是很合理的。但是当嵌套调用的深度和你的数据大小相当时，应该使用尾递归。
 
 ### 更简洁、更快的模式
-现在我们已经知道了列表和模式是如何工作的，让我们考虑一下我们可以如何改进[“递归列表函数”一节](#递归列表函数)中的一个例子：函数`destutter`，用以消除一个列表中的连续重复。下面是之前的实现。
+现在我们已经知道了列表和模式是如何工作的，让我们考虑一下我们可以如何改进[“递归列表函数”一节](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_01_a_guide_tour.md#递归列表函数)中的一个例子：函数`destutter`，用以消除一个列表中的连续重复。下面是之前的实现。
 ```ocaml
 # let rec destutter list =
     match list with
@@ -652,7 +652,7 @@ Exception: (Invalid_argument "equal: functional value").
 
 对于简单的原子类型，多态比较的语义如你所愿：对于浮点数和整数，多态比较就是相关的数值比较函数。对于字符串，就是字典比较。
 
-然而，多态比较的这种类型无关有时会成为问题，特别是当你想施加自己的相等或顺序概念时。在[第13章映射表和哈希表](#映射表和哈希表)中，我们还会进一步讨论这个话题，以及多态比较的其它缺点。
+然而，多态比较的这种类型无关有时会成为问题，特别是当你想施加自己的相等或顺序概念时。在[第13章映射和哈希表](https://github.com/zforget/translation/blob/master/real_world_ocaml/2_13_maps_and_hash_tables.md)中，我们还会进一步讨论这个话题，以及多态比较的其它缺点。
 
 注意`when`子句也是有负面作用的。模式匹配相关的静态检查依赖于其模式在表达方面是受限的。一旦给模式加入了可以附带任意表达式的能力，就会同时丢失某些特性。特别是编译器检查匹配是否完整或分支是否多余的能力会受影响。
 

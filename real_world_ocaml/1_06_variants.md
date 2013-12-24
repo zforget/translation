@@ -189,7 +189,7 @@ but a pattern was expected which matches values of type basic_color
 ### 结合记录和变体
 *代数数据类型*这个术语经常用以描述包括变体、记录和元组这几个类型的集合。代数数据类型可以作为用以描述数据的有用且强大的语言。核心原因是它们结合了两种不同类型： *积类型（product type）*，像元组和记录，把不同类型组合在一起，数学上类似于笛卡儿积；以及 *和类型(sum type)*，像变体，它可以把不同的可能组合在一个类型中，数学上类似于不相交并集。
 
-代数数据类型的大部分能力都来自于其构建分层的和或积组合的能力。我们可以重新实现一下[第5章，记录](#记录)中描述的日志服务器类型。先回顾一下`Log_entry.t`的定义：
+代数数据类型的大部分能力都来自于其构建分层的和或积组合的能力。我们可以重新实现一下[第5章，记录](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_05_records.md)中描述的日志服务器类型。先回顾一下`Log_entry.t`的定义：
 ```ocaml
 # module Log_entry = struct
     type t =

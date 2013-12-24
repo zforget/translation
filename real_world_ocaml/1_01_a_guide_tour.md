@@ -5,7 +5,7 @@
 
 贯穿本书会一直使用Core，一个全功能的OCaml标准库的兼容替代。我们也会使用 **utop**，一个shell，允许你键入表达式并交互式求值。 **utop**是OCaml标准顶层（toplevel，你可以从命令行输入`ocaml`启动）的一个更易用的版本。这些教程会特别假设你使用 **utop**。
 
-开始之前，确保你完成了OCaml的安装，这样就可以试验读到的例子。查看[附录A（安装）](#附录A)以获得更多细节。
+开始之前，确保你完成了OCaml的安装，这样就可以试验读到的例子。
 
 ### OCaml作为计算器
 使用Core要做的第一件事就是打开`Core.Std`。
@@ -111,7 +111,7 @@ val ratio : int -> int -> float = <fun>
 ```
 上面恰好也是我们第一次使用模块。这里，`Float.of_int`引用了`Float`模块中的`of_int`函数。这与你在面向对象语言中的经验不同，在那里点号通常被用来访问对象的方法。注意模块名必须以大写字母开头。
 
-多参数函数类型签名的记法开始看着会有点不适应，这一点我们在[“多参数函数”一节](#多参数函数)讲函数柯里化时会解释。现在只要记住，箭头作为函数参数的分隔符，最后一个箭头后面跟着返回值类型。因此，`int -> int -> float`描述了一个接收两个`int`参数返回一个`float`的函数。
+多参数函数类型签名的记法开始看着会有点不适应，这一点我们在[“多参数函数”一节](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_02_variables_and_functions.md#多参数函数)讲函数柯里化时会解释。现在只要记住，箭头作为函数参数的分隔符，最后一个箭头后面跟着返回值类型。因此，`int -> int -> float`描述了一个接收两个`int`参数返回一个`float`的函数。
 
 函数也可以以其它函数作为参数。下面的例子是一个接收3个参数的函数：一个测试函数和两个整数参数。这个函数返回可以通过测试函数的两个整数参数之和。
 ```ocaml
@@ -316,7 +316,7 @@ Error: This expression has type string but an expression was expected of type in
 
 (* OCaml Utop ∗ guided-tour/main.topscript , continued (part 24) ∗ all code *)
 ```
-我们会在[第二章，变量和函数](#变量和函数)中学习更多关于标签参数的内容，并了解它们的重要性。
+我们会在[第二章，变量和函数](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_02_variables_and_functions.md)中学习更多关于标签参数的内容，并了解它们的重要性。
 ##### 用`::`构造列表
 除了使用方括号构造列表，你也可以使用`::`操作符向一个列表前面添加元素。
 ```ocaml
@@ -556,7 +556,7 @@ val log_entry : Time.t option -> string -> string = <fun>
 
 option非常重要，因为它是OCaml中表示一个可能不存在的值的标准方法，OCaml是没有`NullPointException`这类东西的。这与大多数语言都不一样，包括Java和C#，在这些语言中即使不是所有的，起码也有大部分数据类型是可以为空的，就是说，不管什么类型，它们的值都可能是一个空值。这些语言中，到处都潜伏着空值。
 
-OCaml中，不存在的值是显式的。类型为`string * string`值一定总是真的包含两个正确定义的`string`型值。如果你想要第一个可以不存在，那么就要把类型改为`string option * string`。在[第七章错误处理](#错误处理)中我们会看到，这种显式声明使编译器可以给我们提供巨大的帮助，确保我们已经正确处理了值不存在的情况。
+OCaml中，不存在的值是显式的。类型为`string * string`值一定总是真的包含两个正确定义的`string`型值。如果你想要第一个可以不存在，那么就要把类型改为`string option * string`。在[第七章错误处理](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_07_error_handling.md)中我们会看到，这种显式声明使编译器可以给我们提供巨大的帮助，确保我们已经正确处理了值不存在的情况。
 
 ### 记录(Record)和变体(Variant)
 到目前为止我们见到的数据结构都是语言预定义的，像列表和元组。但OCaml同样也允许我们定义新的数据类型。下面是一个玩具示例，定义了一个表示二维点的数据类型。
@@ -884,7 +884,7 @@ $ corebuild sum.native
 
 # Terminal ∗ guided-tour/build_sum.out ∗ all code
 ```
-.native后缀表示我们要构建本地可执行代码，我们会在[第4章文件、模块和程序](#文件模块和程序)中详细讨论。构建完成后，我们就可以像命令行工具一样使用产生的程序。我们向sum.native输入一系列数字，一行一个，敲control-d结束输入。
+.native后缀表示我们要构建本地可执行代码，我们会在[第4章文件、模块和程序](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_04_files_modules_and_programs.md)中详细讨论。构建完成后，我们就可以像命令行工具一样使用产生的程序。我们向sum.native输入一系列数字，一行一个，敲control-d结束输入。
 ```bash
 $ ./sum.native
 1
@@ -895,7 +895,7 @@ Total: 100.5
 
 # Terminal ∗ guided-tour/sum.out ∗ all code
 ```
-要创建一个有用的命令行程序还有许多工作要做，包括一个合适的命令行解析接口和更好的错误处理，所有这些会在[第14章命令行解析](#命令行解析)中介绍。
+要创建一个有用的命令行程序还有许多工作要做，包括一个合适的命令行解析接口和更好的错误处理，所有这些会在[第14章命令行解析](https://github.com/zforget/translation/blob/master/real_world_ocaml/2_14_command_line_parsing.md)中介绍。
 
 ### 下一步干什么
 作为导览也就这样了！还有许多特性没有介绍，许多细节需要解释，但我们希望你已经建立了对OCaml的大致印象，并在本书接下来的阅读中更舒服。

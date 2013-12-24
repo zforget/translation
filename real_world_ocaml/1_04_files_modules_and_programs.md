@@ -43,9 +43,9 @@ let () =
 
 (* OCaml ∗ files-modules-and-programs-freq/freq.ml ∗ all code *)
 ```
-函数`build_counts`从`stdin`读入多行，并从这些行构建一个行和其出现频率计数的关联列表。调用了`In_channel.fold_lines`函数（类似[第三章列表和模式](#列表和模式)中描述的`List.fold`），它一行行读入，并对每一行调用给定的函数来更新累加器。累加器被初始化为空列表。
+函数`build_counts`从`stdin`读入多行，并从这些行构建一个行和其出现频率计数的关联列表。调用了`In_channel.fold_lines`函数（类似[第三章列表和模式](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_03_lists_and_patterns.md)中描述的`List.fold`），它一行行读入，并对每一行调用给定的函数来更新累加器。累加器被初始化为空列表。
 
-定义好`build_counts`，我们就可以调用它来构建关联列表，然后按频率计数降序排序，取前10个元素，最后遍历这10个元素把它们打印到屏幕上。这些操作用[第二章变量和函数](#变量和函数)中介绍的`|>`操作符串在一起。
+定义好`build_counts`，我们就可以调用它来构建关联列表，然后按频率计数降序排序，取前10个元素，最后遍历这10个元素把它们打印到屏幕上。这些操作用[第二章变量和函数](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_02_variables_and_functions.md)中介绍的`|>`操作符串在一起。
 
 > **`main`函数在哪里？**
 >
@@ -69,7 +69,7 @@ Error: Unbound module Core
 ```
 这里用到了 **ocamlfind**，此工具会自己以合适的标志调用OCaml工具链中的其它组件（这里是 **ocamlc**），以链接特定的库和包。这里，`-package core`告诉ocamlfind要链接Core库，`-linkpkg`告诉ocamlfind构建可执行程序时把需要的库链入，`-thread`打开线程支持开关，Core需要。
 
-对于只有一个文件的工程，这就够了，更复杂的工程需要工具来组织构建。一个很不错的工具就是 **ocamlbuild**，它是和OCaml编译器一起推出的。我们会在[第22章编译器前端：解析和类型检查](#编译器前端解析和类型检查)中进一步介绍ocamlbuild，现在，我们使用ocamlbuild的一个简单封装 **corebuild**，它可以针对Core及其相关的库正确设置构建参数。
+对于只有一个文件的工程，这就够了，更复杂的工程需要工具来组织构建。一个很不错的工具就是 **ocamlbuild**，它是和OCaml编译器一起推出的。我们会在[第22章编译器前端：解析和类型检查](https://github.com/zforget/translation/blob/master/real_world_ocaml/3_22_the_compiler_frontend_parsing_and_type_checking.md)中进一步介绍ocamlbuild，现在，我们使用ocamlbuild的一个简单封装 **corebuild**，它可以针对Core及其相关的库正确设置构建参数。
 ```bash
 $ corebuild freq.byte
 
@@ -100,7 +100,7 @@ $ strings `which ocamlopt` | ./freq.byte
 >
 > 除了性能，这两个编译器产生的代码行为几乎完全一致。有几个问题需要注意一下。首先，字节码编译器可以在更多的架构上使用，并有一些本地码编译器没有的工具。如，OCaml调试器只能用在字节码上（尽管gbd，GNU Debugger，可以用在OCaml本地程序上）。字节码编译器也比本地代码编译器要快。另外，要运行字节码程序，你通常需要在系统上安装OCaml。这并不严格，因为你可以通过`-custom`标志把运行时嵌入到字节程序中。
 >
-> 一般情况下，生产程序都应该使用本地代码编译器构建，有时候字节码适合作为开发构建。还有，在本地代码编译器不支持的平台上也需要使用字节码。关于这两个编译器更多的细节会在[第23章编译器后端：字节码和本地代码](#编译器后端：字节码和本地代码)中讨论。
+> 一般情况下，生产程序都应该使用本地代码编译器构建，有时候字节码适合作为开发构建。还有，在本地代码编译器不支持的平台上也需要使用字节码。关于这两个编译器更多的细节会在[第23章编译器后端：字节码和本地代码](https://github.com/zforget/translation/blob/master/real_world_ocaml/3_23_the_compiler_backend_bytecode_and_native_code.md)中讨论。
 
 ### 多文件程序和模块
 OCaml中的源文件组成了模块系统，每个文件都编译成一个模块，该模块名继承自文件名。之前我们已经碰到过模块了，例如当你使用类似`List.Assoc`模块中的`find`和`add`函数时。最简单的，你可以把模块看作是一个在命名空间中的定义的集合。
@@ -197,7 +197,7 @@ val to_list : t -> (string * int) list
 ```
 注意需要向`Counter`中增加`empty`和`to_list`，因为，我们无法创建一个`Counter.t`，也无法从其中获取数据。
 
-我们也借机对模块进行了文档化。mli文件是你指定模块接口的地方，所以这是放置的文档的自然位置。我们使用两个星号来开始注释，这样ocamldoc工具就能在生成API文档时收集它们。我们会在[第23章编译器前端：解析和类型检查](#编译器前端解析和类型检查)中进一步讨论ocamldoc。
+我们也借机对模块进行了文档化。mli文件是你指定模块接口的地方，所以这是放置的文档的自然位置。我们使用两个星号来开始注释，这样ocamldoc工具就能在生成API文档时收集它们。我们会在[第22章编译器前端：解析和类型检查](https://github.com/zforget/translation/blob/master/real_world_ocaml/3_22_the_compiler_frontend_parsing_and_type_checking.md)中进一步讨论ocamldoc。
 
 下面我们根据新的counter.mli来重写counter.ml。
 ```ocaml
@@ -266,7 +266,7 @@ let touch t s =
 
 (* OCaml ∗ files-modules-and-programs-freq-fast/counter.ml ∗ all code *)
 ```
-注意上面我们有时用`String.Map`而有时只简单使用`Map`。这样做是因为对于有些操作，如创建一个`Map.t`，需要获得类型信息，其它的一些操作，如在一个`Map.t`中查找，则不需要。这在[第13章映射和哈希表](#映射和哈希表)中会进一步详述。
+注意上面我们有时用`String.Map`而有时只简单使用`Map`。这样做是因为对于有些操作，如创建一个`Map.t`，需要获得类型信息，其它的一些操作，如在一个`Map.t`中查找，则不需要。这在[第13章映射和哈希表](https://github.com/zforget/translation/blob/master/real_world_ocaml/2_13_maps_and_hash_tables.md)中会进一步详述。
 
 ### 签名中的具体类型
 在我们的频率计数例子中，`Counter`模块用一个抽象类型Counter.t来表示频率计数的集合。有时，你会希望你接口中的类型是 **具体**的，即在接口中包含类型定义。
@@ -289,7 +289,7 @@ let median t =
 
 (* OCaml ∗ files-modules-and-programs-freq-median/counter.ml , continued (part 1) ∗ all code *)
 ```
-上面我们用`failwith`对空列表的情况抛出异常。[第7章错误处理](#错误处理)中会进一步讨论异常。同时注意`fst`函数用以简单返回一个二元组的第一个元素。
+上面我们用`failwith`对空列表的情况抛出异常。[第7章错误处理](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_07_error_handling.md)中会进一步讨论异常。同时注意`fst`函数用以简单返回一个二元组的第一个元素。
 
 现在，要在接口中暴露这个功能，我们需要同时暴露函数`median`和类型`median`，包括类型`median`的定义。注意值（如函数就是一种值）和类型的命名空间不同，所以这里没有命名冲突。向counter.mli中添加下面两行就能达到这个目的。
 ```ocaml
@@ -608,7 +608,7 @@ Command exited with code 2.
 顺序对于其它类型也有类似的重要性，包括记录类型字段的声名顺序和函数参数（包括标签参数和可选参数）的顺序。
 
 #### 循环依赖
-多数情况下，OCaml都不允许循环依赖，即，一组全部互相依赖的定义。如果你要创建这种定义，就需要特别标记它们。例如，当定义一组相互递归的值（像[“递归函数”一节](#递归函数)中定义的`is_even`和`is_odd`）时，你需要使用`let rec`而不是普通的`let`。
+多数情况下，OCaml都不允许循环依赖，即，一组全部互相依赖的定义。如果你要创建这种定义，就需要特别标记它们。例如，当定义一组相互递归的值（像[“递归函数”一节](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_02_variables_and_functions.md#递归函数)中定义的`is_even`和`is_odd`）时，你需要使用`let rec`而不是普通的`let`。
 
 在模块层面也是如此。模块间的相互依赖默认是不允许的，而文件之间的循环任何情况下都不允许。递归模块是可能的，但极少用，我们不在此讨论。
 

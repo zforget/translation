@@ -10,7 +10,7 @@ let <variable> = <expr>
 
 (* Syntax ∗ variables-and-functions/let.syntax ∗ all code *)
 ```
-在[第4章文件、模块和程序](#文件模块和程序)中接触模块时我们会看到，模块的顶层`let`绑定也使用了相同的语法。
+在[第4章文件、模块和程序](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_04_files_modules_and_programs.md)中接触模块时我们会看到，模块的顶层`let`绑定也使用了相同的语法。
 
 每一个变量绑定都有一个作用域，就是代码中可以引用它的部分。使用 **utop**时，作用域是本次会话后面所有的东西。当在模块中时，作用域就是那个模块剩下的部分。
 
@@ -143,7 +143,7 @@ val upcase_first_entry : string -> string = <fun>
 
 (* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 9) ∗ all code *)
 ```
-这是我们首次使用`assert`，它在标注不可能的情况时很有用。我们会在[第7章错误处理](#错误处理)中详细讨论。
+这是我们首次使用`assert`，它在标注不可能的情况时很有用。我们会在[第7章错误处理](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_07_error_handling.md)中详细讨论。
 
 ### 函数
 考虑到OCaml是一种函数式语言，也就不奇怪函数是如此重要且如此普通，我们目前的每个例子中几乎都有函数的身影。这一节我们更进一步，解释OCaml中的函数是如何工作的。你会看到，OCaml中的函数与你在主流语言中见到的函数有很大的不同。
@@ -209,7 +209,7 @@ val plusone : int -> int = <fun>
 > 
 > (* OCaml Utop ∗ variables-and-functions/main.topscript , continued (part 16) ∗ all code *)
 > ```
-> 这种联系很重要，这在单子(monadic)风格中更明显，详见[第18章使用Async并行编程](#使用Async并行编程)。
+> 这种联系很重要，这在单子(monadic)风格中更明显，详见[第18章使用Async并行编程](https://github.com/zforget/translation/blob/master/real_world_ocaml/2_18_concurrent_programming_with_async.md)。
 
 #### 多参数函数
 OCaml当然支持多参数函数，如：
@@ -275,7 +275,7 @@ OCaml处理这种调用约定也非常高效。特别是，通常都不必为了
 这两种方法差异很小，但是大多数时候你都应该使用柯里化形式，因为它是OCaml中默认的。
 
 #### 递归函数
-定义中又调用了自己的函数就是 **递归**的。递归在任何编程语言中都很重要，但对函数式语言尤为如此，因为递归是函数式语言实现循环结构的手段。（[第8章命令式编程](#命令式编程)中我们会详细介绍，OCaml也支持`for`循环和`while`循环，但是它们只是在使用OCaml的命令式编程特性时才有用。）
+定义中又调用了自己的函数就是 **递归**的。递归在任何编程语言中都很重要，但对函数式语言尤为如此，因为递归是函数式语言实现循环结构的手段。（[第8章命令式编程](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_08_imperative_programming.md)中我们会详细介绍，OCaml也支持`for`循环和`while`循环，但是它们只是在使用OCaml的命令式编程特性时才有用。）
 
 要定义递归函数，你需要使用`rec`关键字将`let`绑定标记成递归的，下面是一个例子，是一个查找列表第一个重复元素序列的函数。
 ```ocaml
@@ -668,7 +668,7 @@ val concat : ?sep:string -> string -> string -> string = <fun>
 
 缺点是调用者可能意识不到还有另外的选择，所以可能不知不觉地（并且是错误地）使用默认行为。只有在省略参数带来的简捷性大于相应的明确性损失时，可选参数才有意义。
 
-这意味着极少用到的函数不应该使用可选参数。一个好的经验法则是避免在模块内部函数（即没有包含在模块接口或mli文件中的函数）中使用可选参数。我们会在[第4章文件、模块和程序](#文件模块和程序)中学习mli文件。
+这意味着极少用到的函数不应该使用可选参数。一个好的经验法则是避免在模块内部函数（即没有包含在模块接口或mli文件中的函数）中使用可选参数。我们会在[第4章文件、模块和程序](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_04_files_modules_and_programs.md)中学习mli文件。
 
 ##### 显式传递一个可选参数
 在后台，一个使用可选参数的函数，当调用者没有提供此参数时，函数会接收到一个`None`，否则会接收到`Some`。但是`Some`和`None`都不是调用者显式传递的。

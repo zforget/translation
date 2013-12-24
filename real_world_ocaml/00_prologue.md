@@ -104,8 +104,8 @@ Jason Hickey是加州山景城Google公司的一名软件工程师。他所在�
 ### 贡献者
 我们要特别感谢下面的人，他们帮助改善了Real World OCaml：
 
-- Leo White为[第11章，对象](#对象)和[12章，类](#类)贡献了大量内容和示例。
-- Jeremy Yallop是[19章，外部功能接口](#FFI)描述的Ctypes库和文档的作者
-- Stephen Weeks负责Core背后的模块化架构，他丰富的笔记是[20章，值的内存表示](#值的内存表示)和[21章，理解垃圾收集器](#理解垃圾收集器)的基础。
+- Leo White为[第11章，对象](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_11_objects.md)和[12章，类](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_12_classes.md)贡献了大量内容和示例。
+- Jeremy Yallop是[19章，外部功能接口](https://github.com/zforget/translation/blob/master/real_world_ocaml/3_19_foreign_function_interface.md)描述的Ctypes库和文档的作者
+- Stephen Weeks负责Core背后的模块化架构，他丰富的笔记是[20章，值的内存表示](https://github.com/zforget/translation/blob/master/real_world_ocaml/3_20_memory_representation_of_values.md)和[21章，理解垃圾收集器](https://github.com/zforget/translation/blob/master/real_world_ocaml/3_21_understanding_the_garbage_collector.md)的基础。
 - Jeremie Diminio是 **utop**的作者，本书的代码片都在使用。
 
