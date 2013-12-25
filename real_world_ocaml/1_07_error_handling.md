@@ -6,7 +6,7 @@
 开始，我们先介绍OCaml中报告错误的两种基本方法：带错误的返回值和异常。
 >> Error-Aware return types
 
-### 带错误的返回值
+### Error-Aware返回值类型
 OCaml中抛出一个错误最好的方法就是把这个错误包含到返回值中。考虑`List`模块中`find`函数的类型：
 ```ocaml
 # List.find;;
@@ -46,7 +46,7 @@ match Hashtbl.find table2 key with
 val find_mismatches : ('a, 'b) Hashtbl.t -> ('a, 'b) Hashtbl.t -> 'a list =
 <fun>
 ```
-使用`option`编码错误凸显了这样一个事实：一个特定的结果，如在列表中没有找到某元素，是一个错误还是一个合理的结果，这一点并不明确。这依赖于你程序中更大的上下文，是一个通用库无法预知的。带错误的返回值的优势就在于两种情况它都适用。
+使用`option`编码错误凸显了这样一个事实：一个特定的结果，如在列表中没有找到某元素，是一个错误还是一个合理的结果，这一点并不明确。这依赖于你程序中更大的上下文，是一个通用库无法预知的。error-aware返回值类型的优势就在于两种情况它都适用。
 
 #### 编码错误和结果
 `option`在报告错误方面不总是有足够的表达力。特别是当你把一个错误编码成`None`时，就没有地方来说明错误的性质了。
@@ -360,8 +360,177 @@ val reminders_of_sexp : string -> (Time.t * string) list = <fun>
 `In_channel.with_file`构建在`protect`之上，所以在发生异常会自己清理。
 
 #### 捕捉特定异常
+OCaml的异常处理系统允许你针对特定的错误调整错误恢复逻辑。例如，`List.find_exn`在元素未找到时会抛出`Not_found`。让我们通过一个例子看一下如何利用这一点。考虑下面的函数：
+```ocaml
+# let lookup_weight ~compute_weight alist key =
+    try
+      let data = List.Assoc.find_exn alist key in
+      compute_weight data
+    with
+      Not_found -> 0. ;;
+val lookup_weight :
+  compute_weight:('a -> float) -> ('b, 'a) List.Assoc.t -> 'b -> float =
+<fun>
+```
+从类型可以看出，`lookup`接收一个关联列表、一个要查找其对应数据的键值和一个用以计算浮点权重的函数。如果没有找到，应该返回权重为`0.`。
 
-#### Backtraces
-#### From Exceptions to Error-Aware Types and Back Again
+上面代码中对异常的使用有点问题。就是当`compute_weight`也抛出异常时会怎样呢？理想情况下，`lookup_weight`应该向上传播这个异常，但如果这个异常恰好是`Not_found`，情况就不是这样了：
+```ocaml
+# lookup_weight ~compute_weight:(fun _ -> raise Not_found)
+    ["a",3; "b",4] "a" ;;
+- : float = 0.
+```
+这类问题很难预先检查，因为类型系统不会告诉你一个函数可能会抛出什么异常。因此，通常更好的办法是避免依赖异常标识来确实错误内容。一个更好的方法是窄化异常处理的作用域，这样当其被触发时，哪部分代码出错就非常清晰了：
+```ocaml
+# let lookup_weight ~compute_weight alist key =
+    match
+      try Some (List.Assoc.find_exn alist key)
+      with _ -> None
+    with
+    | None -> 0.
+    | Some data -> compute_weight data ;;
+val lookup_weight :
+  compute_weight:('a -> float) -> ('b, 'a) List.Assoc.t -> 'b -> float =
+  <fun>
+```
+不过在这个问题上，使用不抛异常的函数`List.Assoc.find`更合适：
+```ocaml
+# let lookup_weight ~compute_weight alist key =
+    match List.Assoc.find alist key with
+    | None -> 0.
+    | Some data -> compute_weight data ;;
+val lookup_weight :
+  compute_weight:('a -> float) -> ('b, 'a) List.Assoc.t -> 'b -> float =
+  <fun>
+```
+#### 回溯
+异常的很大一部分价值是它们以栈回溯的形式提供了有用的调试信息。看下面这个简单程序:
+```ocaml
+open Core.Std
+exception Empty_list
 
-### Choosing an Error-Handling Strategy
+let list_max = function
+  | [] -> raise Empty_list
+  | hd :: tl -> List.fold tl ~init:hd ~f:(Int.max)
+
+let () =
+  printf "%d\n" (list_max [1;2;3]);
+  printf "%d\n" (list_max [])
+```
+如果我们编译并运行此程序，会得到一个栈回溯，提供发生错误的位置及错误发生时的函数调用栈等信息：
+```bash
+$ corebuild blow_up.byte
+$ ./blow_up.byte
+3
+Fatal error: exception Blow_up.Empty_list
+Raised at file "blow_up.ml", line 5, characters 16-26
+Called from file "blow_up.ml", line 10, characters 17-28
+```
+你也可以通过`Exn.backtrace`在程序内部捕获一个回溯，它返回最近抛出的异常的回溯。这在报告详细错误信息又不终止程序时很有用。
+
+如果你打开了回溯功能，这可以很好地工作，但事情不总是如此。实际上，OCaml默认是关闭回溯的，即使你在运行时打开了，也不能获得回溯信息，除非编译时带了调试符号。Core默认相反，所以如果你链接了Core，默认就已经打开了回溯。
+
+即使是使用了Core并且带调试符号编译，你也可以通过将`OCAMLRUNPARAM`环境变量设为空来关闭回溯：
+```bash
+$ corebuild blow_up.byte
+$ OCAMLRUNPARAM= ./blow_up.byte
+3
+Fatal error: exception Blow_up.Empty_list
+```
+这样返回的错误消息信息就少多了。你也可以在代码中调用`Backtrace.Exn.set_recording false`来关闭回溯。
+
+不使用回溯的理由是：速度。OCaml的异常已经很快了，但是禁掉回溯会更快。下面的简单基准测试展示了这种效果，使用了`core_bench`包：
+```ocaml
+open Core.Std
+open Core_bench.Std
+
+let simple_computation () =
+  List.range 0 10
+  |> List.fold ~init:0 ~f:(fun sum x -> sum + x * x)
+  |> ignore
+
+let simple_with_handler () =
+  try simple_computation () with Exit -> ()
+
+let end_with_exn () =
+  try
+    simple_computation ();
+    raise Exit
+  with Exit -> ()
+
+let () =
+  [ Bench.Test.create ~name:"simple computation"
+      (fun () -> simple_computation ());
+    Bench.Test.create ~name:"simple computation w/handler"
+      (fun () -> simple_with_handler ());
+    Bench.Test.create ~name:"end with exn"
+      (fun () -> end_with_exn ());
+  ]
+  |> Bench.make_command
+  |> Command.run
+```
+这里我们测试了三种情况：没有异常的简单计算；同样的计算，使用了异常处理器但没有抛出异常；最后也是同样计算，使用了异常来完成返回调用者的控制流。
+
+打开栈回溯运行，基准测试结果如下：
+```bash
+$ corebuild -pkg core_bench exn_cost.native
+$ ./exn_cost.native -ascii cycles
+Estimated testing time 30s (change using -quota SECS).
+
+ Name                           Cycles   Time (ns)   % of max 
+------------------------------ -------- ----------- ---------- 
+ simple computation                279         117      76.40 
+ simple computation w/handler      308         129      84.36 
+ end with exn                      366         153      100.00 
+```
+可以看到添加异常处理器大约损失了30个循环，真正捕获并处理了异常则损失了60多。如果关闭回溯，结果如下：
+```bash
+$ OCAMLRUNPARAM= ./exn_cost.native -ascii cycles
+Estimated testing time 30s (change using -quota SECS).
+
+ Name                           Cycles   Time (ns)   % of max 
+------------------------------ -------- ----------- ---------- 
+ simple computation                279         116      83.50 
+simple computation w/handler       308         128      92.09 
+end with exn                       334         140      100.00 
+```
+处理器开销不变，但是异常本身开销只有25个额外循环，而不是60。总之，只有在你把异常作为日常控制流使用时这才有意义，但大多数情况下这都是一种错误的风格。
+
+#### 从异常再一次回到error-aware类型
+异常和error-aware类型都是OCaml编程必须的。因此，你经常需要在两者间跳转。幸运的是，OCaml自带了一些有用的辅助函数来帮助你。如，有一段会抛异常的代码，就可以像下面这样把异常捕获进一个`option`中：
+```ocaml
+# let find alist key =
+    Option.try_with (fun () -> find_exn alist key) ;;
+val find : (string * 'a) list -> string -> 'a option = <fun>
+# find ["a",1; "b",2] "c";;
+- : int option = None
+# find ["a",1; "b",2] "b";;
+- : int option = Some 2
+```
+`Result`和`Or_error`都有类似的`try_with`函数。所以，我们可以这样写:
+```ocaml
+# let find alist key =
+    Or_error.try_with (fun () -> find_exn alist key) ;;
+val find : (string * 'a) list -> string -> 'a Or_error.t = <fun>
+# find ["a",1; "b",2] "c";;
+- : int Or_error.t = Core_kernel.Result.Error ("Key_not_found(\"c\")")
+```
+然后我们还可以重新抛出这个异常：
+```ocaml
+# Or_error.ok_exn (find ["a",1; "b",2] "b");;
+- : int = 2
+# Or_error.ok_exn (find ["a",1; "b",2] "c");;
+Exception: ("Key_not_found(\"c\")").
+```
+### 选择错误处理策略
+既然OCaml既支持异常又支持error-aware返回类型，我们该如何选择呢？关键是要权衡简洁性和明确性。
+
+异常更简洁，因为它们允许你将错误处理推迟到一个更大的作用域去执行，它们还不会干扰你的类型。但是这种简洁是有代价的：异常太容易被忽略了。另一方面，error-aware返回值类型，清楚地出现在你的类型定义中，使代码中可能产生的错误更明显且难以忽略。
+
+正确的权衡依赖于你的程序。如果你在写一个粗糙的程序，目标是快速实现，出错也不是那昂贵，那么大量使用异常可能是个办法。但，如果你在写一个产品级软件，出错很昂贵，那么你可能应该倾向于使用error-aware返回值类型。
+
+需要声明一下，没有心要完全避免异常。"只在异常条件下使用异常"的格言还是适用的。如果一个错误特别不易发生，那么抛一个异常通常是正确的行为。
+
+同样，对于无处不在的错误，使用error-aware返回值类型可能就过分了。一个典型例子是内存耗尽错误，它可能发生在任何地方，所以你需要在任何位置都使用error-aware返回类型来捕获它们。把每个操作都标记成可能失败并不比不标记更明确。
+
+一句话，对于可预知的、是你生产代码执行的正常部分且不是无处不在的错误，error-aware返回类型通常是正确的方案。
