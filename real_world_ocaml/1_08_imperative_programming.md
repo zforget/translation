@@ -10,7 +10,7 @@ OCaml中默认的是函数式代码，原因是容易推导、错误更少且可
 
 我们现在描述的字典，和Core及标准库中的一样，将使用哈希表实现。我们将使用*开放哈希*，一个哈希表是一个存储单元(bucket)的数组，每个存储单元包含一个键/值序对的列表。
 
-下面是以mli文件形式提供的接口。类型`('a, 'b) t`表示一个字典键类型为`'a`，值类型为`'b`：
+下面是以mli文件形式提供的接口。类型`('a, 'b) t`表示一个键类型为`'a`，值类型为`'b`的字典：
 ```ocaml
 (* file: dictionary.mli *)
 open Core.Std
@@ -26,9 +26,9 @@ val remove : ('a, 'b) t -> 'a -> unit
 ```
 mli文件中还包含一组辅助函数，其目的和行为可以从名字和类型签名中猜个八九不离十。注意有多个函数，像添加和修改字典的函数，都返回`unit`。这些是典型地通过副作用发挥作用的函数。
 
-现在我们一块块地过一个实现（包含在ml文件中），解释遇到各种命令式构造。
+现在我们一块块地过一下实现（包含在ml文件中），解释遇到各种命令式构造。
 
-第一步是把字典类型定义成一个有两个初段的记录：
+第一步是把字典类型定义成一个有两个字段的记录：
 ```ocaml
 (* file: dictionary.ml *)
 open Core.Std
@@ -37,7 +37,7 @@ type ('a, 'b) t = { mutable length: int;
                     buckets: ('a * 'b) list array;
                   }
 ```
-第一个初段`length`被声明成可变的。在OCaml中，记录默认是不可变的，但是单独的字段可以标记成可变的。第二个字段`buckets`是不可变的，但是都包含了一个数组，它本身就是个可变数据结构。
+第一个字段`length`被声明成可变的。在OCaml中，记录默认是不可变的，但是单独的字段可以标记成可变的。第二个字段`buckets`是不可变的，但是包含了一个数组，这个数组本身就是个可变数据结构。
 
 现在我们开始组建操作字典的基本函数：
 ```ocaml
@@ -65,7 +65,7 @@ let find t key =
 - `create`  
     创建一个空字典。
 - `length`  
-  从相应的记录字段中提取长度，返回保存了字典中的元素数。
+  从相应的记录字段中提取长度，返回保存在字典中的元素数。
 - `find`  
   在表中查找一个键，如果找到就以`option`类型返回相关的值。
 
@@ -114,7 +114,7 @@ let remove t key =
     t.length <- t.length - 1
   )
 ```
-上面的代码更复杂一些，因为我们需要检查是不是在重写删除已存在的绑定，以确定是否需要修改`t.length`。辅助函数`bucket_has_key`即用于此。
+上面的代码更复杂一些，因为我们需要检查是不是在重写或删除已存在的绑定，以确定是否需要修改`t.length`。辅助函数`bucket_has_key`即用于此。
 
 `add`和`remove`都展示了一个语法：使用`<-`操作符更新数组元素（`arrray.(i) <- expr`）以及更新一个记录字段(`record.field <- expression`)。
 
@@ -168,7 +168,7 @@ OCaml支持好几种类数组数据结构，也就是以整数为索引的容器
 <string_expr>.[<index_expr>]
 <string_expr>.[<index_expr>] <- <char_expr>
 ```
-字符串字面值是个双引号包围的。同样也存在一个`String`模块，里面你可以发现字符串相关的有用函数。
+字符串字面值是用双引号包围的。同样也存在一个`String`模块，里面你可以找到字符串相关的有用函数。
 
 ##### Bigarrays
 `Bigarray.t`是一个OCaml堆之外的内存块句柄。主要用以和C或Fortran交互，[第20章](https://github.com/zforget/translation/blob/master/real_world_ocaml/3_20_memory_representation_of_values.md)会讨论。Bigarray也有自己的存取语法：
@@ -223,6 +223,7 @@ OCaml中另一部分命令式操作来自通过OCaml的外部函数接口（FFI�
 
 ### `for`和`while`循环
 OCaml支持传统的命令式循环结构，即`for`和`while`循环。它们都不是必须的，因为可以用递归函数模拟。然而，显式的`for`和`while`循环更简洁且在命令式编程中也更常用。
+
 两者中`for`循环要简单些。实际上，我们已经用过`for`了--`Dictionary`中的`iter`函数中就是使用它创建的。这里有一个`for`的简单例子：
 ```ocaml
 # for i = 0 to 3 do printf "i = %d\n" i done;;
@@ -269,8 +270,82 @@ val nums : int array = [|1; 2; 3; 4; 5|]
 ```
 上例中，我们使用了`incr`和`decr`，它们是内建的函数，分别将一个`int ref`加一或减一。
 ### 例子：双向链表
+另一个常见的命令式数据结构是双向链表。双向链表可以从两个方向遍历，元素的添加和删除是常数时间。Core定义了一个双向列表（模式名`Doubly_linked`），但我们为了演示还是要定义自己的双向链表。
 
-#### Modifying the List
+这是模块的mli文件:
+```ocaml
+(* file: dlist.mli *)
+open Core.Std
+
+type 'a t
+type 'a element
+
+(** Basic list operations *)
+val create  : unit -> 'a t
+val is_empty : 'a t -> bool
+
+(** Navigation using [element]s *)
+val first : 'a t -> 'a element option
+val next  : 'a element -> 'a element option
+val prev  : 'a element -> 'a element option
+val value : 'a element -> 'a
+
+(** Whole-data-structure iteration *)
+val iter  : 'a t -> f:('a -> unit) -> unit
+val find_el : 'a t -> f:('a -> bool) -> 'a element option
+
+(** Mutation *)
+val insert_first : 'a t -> 'a -> 'a element
+val insert_after : 'a element -> 'a -> 'a element
+val remove : 'a t -> 'a element -> unit
+```
+注意这里有两个类型定义：`'a t`，列表类型；和`'a element`，元素类型。元素充当了列表的内部指针，允许你操作列表并给了你可以施加修改操作的地方。
+
+现在让我们看一下实现。我们从定义`'a element`和`'a t`开始：
+```ocaml
+(* file: dlist.ml *)
+open Core.Std
+
+type 'a element =
+  { value : 'a;
+    mutable next : 'a element option;
+    mutable prev : 'a element option
+  }
+  
+type 'a t = 'a element option ref
+```
+`'a element`是一个记录，包含一个该节点存储的值，还有指向前一个和后一个元素的`option`（同时也是可变的）字段。在列表头，前导元素是`None`，在列表尾，后续元素是`None`。
+
+列表自身的类型是一个`option`元素的可变引用。列表为空时这个引用是`None`，否则是`Some`。
+
+现在我们可以定义操作列表和元素的基本函数了：
+```ocaml
+let create () = ref None
+let is_empty t = !t = None
+
+let value elt = elt.value
+
+let first t = !t
+let next elt = elt.next
+let prev elt = elt.prev
+```
+我些都是从我们的类型定义中直接得出的。
+> **循环数据结构**
+> 
+> 双向链表是循环数据结构，就是说可能沿着一个非平凡的指针序列可以接近自身。通常构建循环数据结构都要求副作用。先构建数据元素，然后使用向后赋值添加循环。
+>
+> 但有一个例外：你可以使用`let rec`构建固定长度的循环数据结构：
+> ```ocaml
+> # let rec endless_loop = 1 :: 2 :: 3 :: endless_loop;;
+> val endless_loop : int list =
+>   [1; 2; 3; 1; 2; 3; 1; 2; 3;
+>    1; 2; 3; 1; 2; 3; 1; 2; 3;
+>    1; 2; 3; 1; 2; 3; 1; 2; 3;
+>    ...]
+> ```
+> 然而这种方法作用很有限。通用目的的循环数据结构需要能修改。
+
+#### 修改列表
 #### Iteration Functions
 
 ### Laziness and Other Benign Effects
