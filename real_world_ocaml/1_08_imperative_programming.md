@@ -346,7 +346,55 @@ let prev elt = elt.prev
 > 然而这种方法作用很有限。通用目的的循环数据结构需要能修改。
 
 #### 修改列表
-#### Iteration Functions
+现在我们开始考虑修改列表的操作，从`insert_first`开始，它用以在列表头部插入一个元素：
+```ocaml
+let insert_first t value =
+  let new_elt = { prev = None; next = !t; value } in
+  begin match !t with
+  | Some old_first -> old_first.prev <- Some new_elt
+  | None -> ()
+  end;
+  t := Some new_elt;
+  new_elt
+```
+`insert_first`首先定义了一个新元素`new_elt`，然后将其连到列表上，最后把列表本身指向`new_elt`。注意`match`语句的优先级是非常低的，为了和后面的赋值语句（`t := Some new_elt`）分开，我们使用`begin ... end`将其包围。我们也可以使用小括号达到同样的目的。如果没有某种括号，最后的赋值会错误地成为`None`分支的一部分。
+
+我们可以使用`insert_after`在列表的元素后插入元素。`insert_after`以一个要在其后插入新节点的元素和一个要插入的值为参数：
+```ocaml
+let insert_after elt value =
+  let new_elt = { value; prev = Some elt; next = elt.next } in
+  begin match elt.next with
+  | Some old_next -> old_next.prev <- Some new_elt
+  | None -> ()
+  end;
+  elt.next <- Some new_elt;
+new_elt
+```
+最后我们需要一个`remove`函数：
+```ocaml
+let remove t elt =
+  let { prev; next; _ } = elt in
+  begin match prev with
+  | Some prev -> prev.next <- next
+  | None -> t := next
+  end;
+  begin match next with
+  | Some next -> next.prev <- prev;
+  | None -> ()
+  end;
+  elt.prev <- None;
+  elt.next <- None
+```
+上面的代码在前后元素存在时，小心地修改了后面元素的`prev`指针和前面元素的`next`指针。如果没有前导元素，要更新列表自身的指针。任何情况下，都要把被删除元素前导和后续元素指针设置为`None`。
+
+这些函数比看起来要脆弱得多。错误使用接口可能导致毁坏的数据。如，重复删除一个元素会导致列表的主引用被置了`None`，这会清空列表。删除一个列表中不存在的列表也会导致类似的问题。
+
+也并不意外。复杂的数据结构肯定更难处理，比其纯函数式的替代需要更多技巧。前面说的问题可以通过更小心的错误检查处理，且这样的错误在Core的`Doubly_linked`模块中都得到了小心处理。你应该尽可能地使用设计良好的库中的命令式数据结构。如果不行，你应该确保在错误上加倍小心。
+
+#### 迭代函数
+当定义列表、字典和树这样的容器时，你通常需要定义一组迭代函数，如`iter`、`map`和`fold`，使用它们来简洁地表达通用迭代模式。
+
+`Dlist`有两个这种迭代器：`iter`，目标是按顺序在列表的每一个元素上调用一个产生`unit`的函数；还有`find_el`，在列表的每一个元素
 
 ### Laziness and Other Benign Effects
 #### Memoization and Other Dynamic Programming
