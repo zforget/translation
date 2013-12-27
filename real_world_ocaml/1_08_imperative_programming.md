@@ -357,7 +357,7 @@ let insert_first t value =
   t := Some new_elt;
   new_elt
 ```
-`insert_first`首先定义了一个新元素`new_elt`，然后将其连到列表上，最后把列表本身指向`new_elt`。注意`match`语句的优先级是非常低的，为了和后面的赋值语句（`t := Some new_elt`）分开，我们使用`begin ... end`将其包围。我们也可以使用小括号达到同样的目的。如果没有某种括号，最后的赋值会错误地成为`None`分支的一部分。
+`insert_first`首先定义了一个新元素`new_elt`，然后将其连到列表上，最后把列表本身指向`new_elt`。注意`match`语句的优先级是非常低的，为了和后面的赋值语句（`t := Some new_elt`）分开，我们使用`begin ... end`将其包围。我们也可以使用小括号达到同样的目的。如果没有某种形式的括号，最后的赋值会错误地成为`None`分支的一部分。
 
 我们可以使用`insert_after`在列表的元素后插入元素。`insert_after`以一个要在其后插入新节点的元素和一个要插入的值为参数：
 ```ocaml
@@ -387,16 +387,61 @@ let remove t elt =
 ```
 上面的代码在前后元素存在时，小心地修改了后面元素的`prev`指针和前面元素的`next`指针。如果没有前导元素，要更新列表自身的指针。任何情况下，都要把被删除元素前导和后续元素指针设置为`None`。
 
-这些函数比看起来要脆弱得多。错误使用接口可能导致毁坏的数据。如，重复删除一个元素会导致列表的主引用被置了`None`，这会清空列表。删除一个列表中不存在的列表也会导致类似的问题。
+上面的函数比看起来要脆弱得多。错误使用接口可能导致毁坏的数据。如，重复删除一个元素会导致列表的主引用被置为`None`，这会清空列表。删除一个列表中不存在的列表也会导致类似的问题。
 
-也并不意外。复杂的数据结构肯定更难处理，比其纯函数式的替代需要更多技巧。前面说的问题可以通过更小心的错误检查处理，且这样的错误在Core的`Doubly_linked`模块中都得到了小心处理。你应该尽可能地使用设计良好的库中的命令式数据结构。如果不行，你应该确保在错误上加倍小心。
+也并不意外。复杂的数据结构肯定更难处理，比其纯函数式的替代需要更多技巧。前面说的问题可以通过更小心的错误检查来处理，且这样的错误在Core的`Doubly_linked`模块中都得到了小心处理。你应该尽可能地使用设计良好的库中的命令式数据结构。如果不行，你应该确保在错误处理上加倍小心。
 
 #### 迭代函数
 当定义列表、字典和树这样的容器时，你通常需要定义一组迭代函数，如`iter`、`map`和`fold`，使用它们来简洁地表达通用迭代模式。
 
-`Dlist`有两个这种迭代器：`iter`，目标是按顺序在列表的每一个元素上调用一个产生`unit`的函数；还有`find_el`，在列表的每一个元素
+`Dlist`有两个这种迭代器：`iter`，目标是按顺序在列表的每一个元素上调用一个产生`unit`的函数；还有`find_el`，在列表的每一个元素这运行一个测试函数，返回第一个通过测试的元素。`iter`和`find_el`都是用简单递归循环实现的，使用`next`从一个元素转到另一个元素，使用`value`提取给定节点的值：
+```ocaml
+let iter t ~f =
+  let rec loop = function
+	| None -> ()
+	| Some el -> f (value el); loop (next el)
+  in
+  loop !t
 
-### Laziness and Other Benign Effects
+let find_el t ~f =
+  let rec loop = function
+	| None -> None
+	| Some elt ->
+	  if f (value elt) then Some elt
+	  else loop (next elt)
+  in
+  loop !t
+```
+这样我们的实现就完成了，但是要得到一个真正实用的双向链表还有相当多的工作要做。如前所述，你最好使用像Core的`Doubly_link`这样的模块，它们更完整，也处理了更多棘手问题。尽管如此，本例还是展示了OCaml中你可以用来构建重要命令式数据结构的技术，同时还有陷阱。
+
+
+### 惰性和温和影响
+>> Laziness and Benign Effects
+
+很多时候，你都想基本上用纯函数式风格编程，只有限地使用副作用来提高代码效率。这种副作用有时称为 *温和影响*，这是一种既能使用命令式特性又能保留纯函数式好处的很有用的方法。
+
+最简单的温和影响就是 *惰性*。一个惰性值就是一个不真正使用不计算的值。在OCaml中，惰性值使用`lazy`关键字创建，它可以把一个类型为`s`的表达式转换成类型为`s Lazy.t`的惰性值。表达式的求值被推迟，直到强制调用`Lazy.force`：
+```ocaml
+# let v = lazy (print_string "performing lazy computation\n"; sqrt 16.);;
+val v : float lazy_t = <lazy>
+# Lazy.force v;;
+performing lazy computation
+- : float = 4.
+# Lazy.force v;;
+- : float = 4.
+```
+从`print`语句可以看出，实际的计算只运行了一次，在调用`force`之后。
+
+为了更好地理解惰性的工作原理，我们一起来实现自己的惰性类型。我们首先声明一个类型来表示惰性值：
+```ocaml
+# type 'a lazy_state =
+	| Delayed of (unit -> 'a)
+	| Value of 'a
+	| Exn of exn
+  ;;
+type 'a lazy_state = Delayed of (unit -> 'a) | Value of 'a | Exn of exn
+```
+
 #### Memoization and Other Dynamic Programming
 
 ### Input and Output
