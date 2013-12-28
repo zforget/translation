@@ -1,4 +1,5 @@
-## 第八章 命令式编程
+## 第八章 命令式编程 ##
+
 到目前为止，本书所示的大部分代码，实际上，应该是一般的OCaml代码，都是*纯函数式*的。纯函数式代码不会修改程序内部状态，没有I/O操作，不去读时钟，也不会以其它方式与外部的可变部分交互。因此一个纯函数行为类似一个数学方程式，对给定的输入总是会返回相同的结果，除了返回值之外对外部没有任何影响。另一方面，*命令式*代码通过副作用运作，修改程序内部状态或与外部交互。命令式函数有新的作用，并潜在每次调用返回不同的值的可能。
 
 OCaml中默认的是函数式代码，原因是容易推导、错误更少且可组合性更好。但对于实用的编程语言来说，命令式代码有根本的重要性，因为现实世界的任务要求你与外部交互，这是其本性。命令式编程在性能方面也很重要。尽管OCaml中的纯函数代码很高效，但有许多算法只能用命令式技术高效实现。
@@ -441,10 +442,288 @@ performing lazy computation
   ;;
 type 'a lazy_state = Delayed of (unit -> 'a) | Value of 'a | Exn of exn
 ```
+`lazy_state`表示一个惰性值的可能状态。运行之前惰性值是`Delayed`，`Delayed`持有一个用于计算的函数。计算被强制执行完成并正常结束后惰性值是`Value`。当计算被强制执行，但抛出了异常时使用`Exn`实例。一个惰性值就是一个简单的`lazy_state`引用。`ref`使得可以从`Delayed`状态转换到`Value`或`Exn`。
 
-#### Memoization and Other Dynamic Programming
+我们可以从一个代码块创建一个惰性值，即，一个接收一个`unit`参数的函数。把表达式包装在一个代码块中是另一种暂停计算表达式的方式：
+```ocaml
+# let create_lazy f = ref (Delayed f);;
+val create_lazy : (unit -> 'a) -> 'a lazy_state ref = <fun>
+# let v = create_lazy
+(fun () -> print_string "performing lazy computation\n"; sqrt 16.);;
+val v : float lazy_state ref = {contents = Delayed <fun>}
+```
+现在我们只要一个强制执行惰性值的方法。下面代码即可做到：
+```ocaml
+# let force v =
+	match !v with
+	| Value x -> x
+	| Exn e -> raise e
+	| Delayed f ->
+	try
+	  let x = f () in
+	  v := Value x;
+	  x
+	with exn ->
+	  v := Exn exn;
+	  raise exn
+;;
+val force : 'a lazy_state ref -> 'a = <fun>
+```
+我们可以使用`Lazy.force`一样来使用它：
+```ocaml
+# force v;;
+performing lazy computation
+- : float = 4.
+# force v;;
+- : float = 4.
+```
+我们实现的和内建惰性之间用户能看到的不同就是语法。相对于`create_lazy (fun () -> sqrt 16.)`，我们（使用内建的`lazy`）只写`lazy (sqrt 16.)`就可以了。	
 
-### Input and Output
+#### 记忆和动态编程
+>> Memoization and Other Dynamic Programming
+
+另一个温和影响是 *记忆*。一个记忆函数可以记住之前调用的结果，因此之前调用的参数再次出现时，就可以直接返回而不用继续计算。
+
+这里有一个函数接收任意一个单参数函数为参数，返回其记忆版本。这里我们使用了Core的`Hashtbl`模块，而没有使用我们自己的玩具`Dictionary`：
+```ocaml
+# let memoize f =
+    let table = Hashtbl.Poly.create () in
+    (fun x ->
+      match Hashtbl.find table x with
+      | Some y -> y
+      | None ->
+        let y = f x in
+        Hashtbl.add_exn table ~key:x ~data:y;
+        y
+    );;
+val memoize : ('a -> 'b) -> 'a -> 'b = <fun>
+```
+上面的代码有点技巧。`memoize`接收一个函数`f`作为参数，然后分配一个哈希表（叫`table`）并返回一个新的函数作为`f`的记忆版本。当新函数被调用时，先查表，查找失败才会调用`f`并把结果存到`table`中。只要`memoize`返回的函数在作用域内，`table`就有效。
+
+当函数重新计算很昂贵且你不介意无限缓存旧结果时，记忆非常有用。重要警告：记忆函数天生就是内存泄漏。只要你使用记忆函数，你就持有了其到目前为止的每一个返回结果。
+
+记忆也用于高效实现一些递归算法。计算两个字符串的编辑距离（也称Levenshtein距离）是一个很好的例子。编辑距离是把一个字符串转换为另一个字符串所需要的单字节修改（包括字母变化、插入和删除）次数。这种距离度量可用于各种近似字符串匹配问题，如拼写检查。
+
+考虑下面计算编辑距离的代码。这里了解算法不是重点，但你要注意递归调用结构：
+```ocaml
+# let rec edit_distance s t =
+    match String.length s, String.length t with
+    | (0,x) | (x,0) -> x
+    | (len_s,len_t) ->
+      let s' = String.drop_suffix s 1 in
+      let t' = String.drop_suffix t 1 in
+      let cost_to_drop_both =
+        if s.[len_s - 1] = t.[len_t - 1] then 0 else 1
+      in
+      List.reduce_exn ~f:Int.min
+        [ edit_distance s' t  + 1
+        ; edit_distance s  t' + 1
+        ; edit_distance s' t' + cost_to_drop_both
+        ]
+  ;;
+val edit_distance : string -> string -> int = <fun>
+# edit_distance "OCaml" "ocaml";;
+- : int = 2
+```
+注意当调用`edit_distance "OCaml" "ocaml"`时，会按顺序分配下面的调用：
+```ocaml
+edit_distance "OCam" "ocaml"
+edit_distance "OCaml" "ocam"
+edit_distance "OCam" "ocam"
+```
+这样又会按顺序分配其它的调用：
+```ocaml
+edit_distance "OCam" "ocaml"
+   edit_distance "OCa" "ocaml"
+   edit_distance "OCam" "ocam"
+   edit_distance "OCa" "ocam"
+edit_distance "OCaml" "ocam"
+   edit_distance "OCam" "ocam"
+   edit_distance "OCaml" "oca"
+   edit_distance "OCam" "oca"
+edit_distance "OCam" "ocam"
+   edit_distance "OCa" "ocam"
+   edit_distance "OCam" "oca"
+   edit_distance "OCa" "oca"
+```
+如你所见，这些调用中有一些是重复的。如有两个不同的`edit_distance "OCam" "oca"`调用。随着字符串大小的增长冗余数以指数级增加，这意味着我们的`edit_distance`在处理大字符串时非常非常慢。我们可以通过写一个简单计时函数来看一下：
+```ocaml
+# let time f =
+    let start = Time.now () in
+    let x = f () in
+    let stop = Time.now () in
+    printf "Time: %s\n" (Time.Span.to_string (Time.diff stop start));
+    x ;;
+val time : (unit -> 'a) -> 'a = <fun>
+```
+我们现在可以用这个函数来试验一些例子：
+```ocaml
+# time (fun () -> edit_distance "OCaml" "ocaml");;
+Time: 1.40405ms
+- : int = 2
+# time (fun () -> edit_distance "OCaml 4.01" "ocaml 4.01");;
+Time: 6.79065s
+- : int = 2
+```
+几个额外字符就能导致慢几千倍。
+
+这里记忆就可以帮上大忙了，但要修复这个问题，我们要记住`edit_distance`对其自己的调用。这种技术有时被称作动态编程。为了弄明白如何做，我们把`edit_distance`放一边，先考虑一个简单得多的例子：计算斐波纳契数列的第`n`个元素。斐波纳契数列定义为，以两个`1`开始，后续元素是前面两个的和。经典的递归计算如下：
+```ocaml
+# let rec fib i =
+    if i <= 1 then 1 else fib (i - 2) + fib (i - 1);;
+```
+但是这个实现指数级地慢，和`edit_distance`慢的原因相同：我们对`fib`做了很多重复调用。性能方面相当有明显：
+```ocaml
+# time (fun () -> fib 20);;
+Time: 0.844955ms
+- : int = 10946
+# time (fun () -> fib 40);;
+Time: 12.7751s
+- : int = 165580141
+```
+如你所见，`fib 40`比`fib 20`慢了几千倍。
+
+那么，我们如何使用记忆来加速呢？技巧就是我们需要在fib中的递归调用前插入记忆。我们不能以普通方式定义`fib`然后再记忆它以期待`fib`的第一个调用被提升：
+```ocaml
+# let fib = memoize fib;;
+val fib : int -> int = <fun>
+# time (fun () -> fib 40);;
+Time: 12.774s
+- : int = 165580141
+# time (fun () -> fib 40);;
+Time: 0.00309944ms
+- : int = 165580141
+```
+为了加速`fib`，第一步我们将展开递归来重写`fib`。下面的版本需要其第一参数是一个函数（叫作`fib`），用它来替换每一个递归调用：
+```ocaml
+# let fib_norec fib i =
+    if i <= 1 then i
+    else fib (i - 1) + fib (i - 2) ;;
+val fib_norec : (int -> int) -> int -> int = <fun>
+```
+现在我们可以连接递归节点(recursive knot)来把它转成一个普通的斐波纳契函数：
+```ocaml
+# let rec fib i = fib_norec fib i;;
+val fib : int -> int = <fun>
+# fib 20;;
+- : int = 6765
+```
+我们甚至可以定义一个叫`make_rec`的多态函数以这种形式来连接任何函数的递归节点：
+```ocaml
+# let make_rec f_norec =
+    let rec f x = f_norec f x in
+    f
+;;
+val make_rec : (('a -> 'b) -> 'a -> 'b) -> 'a -> 'b = <fun>
+# let fib = make_rec fib_norec;;
+val fib : int -> int = <fun>
+# fib 20;;
+- : int = 6765
+```
+这是一段奇怪的代码，要弄清楚需要多考虑一会儿。像`fib_norec`一样，传递给`make_rec`的函数`f_norec`不是递归的，但是接收并调用一个函数参数。`make_rec`的本质是把`f_norec`喂给它自己，从面形成了一个真正的递归函数。
+
+这种做法挺聪明的，但我们真正要做的是要找到一种方法来实现之前的很慢的斐波纳契函数。要使它更快，我们需要一个`make_rec`的变体，可以在绑定递归节点时插入记忆。我们称之为`memo_rec`：
+```ocaml
+# let memo_rec f_norec x =
+    let fref = ref (fun _ -> assert false) in (* 下面这几句是创建递归的一种方法，此函数是占位用的。 zhaock *)
+    let f = memoize (fun x -> f_norec !fref x) in
+    fref := f;
+    f x
+  ;;
+val memo_rec : (('a -> 'b) -> 'a -> 'b) -> 'a -> 'b = <fun
+```
+注意`memo_rec`和`make_rec`签名相同。
+
+这里我们用引用来连接递归节点，而不是`let rec`，原因我们稍后讨论。
+
+使用`memo_rec`，现在我们可以构建`fib`的高效版本了：
+```ocaml
+# let fib = memo_rec fib_norec;;
+val fib : int -> int = <fun>
+# time (fun () -> fib 40);;
+Time: 0.0591278ms
+- : int = 102334155
+```
+可以看到，指数级的时间复杂度消失了。
+
+记忆行为在这里很重要。如果回头看一下`memo_rec`的定义，你会看到调用`memo_rec lib_norec`没有触发`memoize`调用。只有`fib`被调用从而`memo_rec`最终的参数确定时，`memoize`才会被调用。调用结果在`fib`返回时就超出作用域了，所以调用`memo_rec`不会有内存泄漏--记忆表在计算结束时被回收了。
+
+我们可以把`memo_rec`作用一个单独声明的一部分，这让它看起来更像是`let rec`的一种特殊形式：
+```ocaml
+# let fib = memo_rec (fun fib i ->
+    if i <= 1 then 1 else fib (i - 1) + fib (i - 2));;
+val fib : int -> int = <fun>
+```
+用记忆来实现斐波纳契有点小题大作了，实际上，上面的`fib`也不是特别高效，需要按传给`fib`的数线性分配空间。写一个只用常数空间的斐波纳契函数是很容易的。
+
+但是对于`edit_distance`，记忆却是一个好方法，我们可以使用和`fib`一样的方法。我们需要修改一下`edit_distance`使它把一对字符串接收为一个参数，因为`memo_rec`只能作用于单参数函数上。（我们总是可以使用封装函数来覆盖原始接口。）这样的修改加上`memo_rec`的调用，我们就得到了一个有记忆版的`edit_distance`:
+```ocaml
+# let edit_distance = memo_rec (fun edit_distance (s,t) ->
+    match String.length s, String.length t with
+    | (0,x) | (x,0) -> x
+    | (len_s,len_t) ->
+      let s' = String.drop_suffix s 1 in
+      let t' = String.drop_suffix t 1 in
+      let cost_to_drop_both =
+        if s.[len_s - 1] = t.[len_t - 1] then 0 else 1
+      in
+      List.reduce_exn ~f:Int.min
+        [ edit_distance (s',t ) + 1
+        ; edit_distance (s ,t') + 1
+        ; edit_distance (s',t') + cost_to_drop_both
+        ]) ;;
+val edit_distance : string * string -> int = <fun>
+```
+新版的`edit_distance`比之前的要高效得多；下面的调用比没有记忆的版本快了几千倍：
+```ocaml
+# time (fun () -> edit_distance ("OCaml 4.01","ocaml 4.01"));;
+Time: 0.500917ms
+- : int = 2
+```
+
+> **`let rec`的局限性**
+>
+> 你可能想知道，在`memo_rec`中连接递归节点时为什么不像先前`make_rec`中那样使用`let rec`。代码如下：
+> ```ocaml
+> # let memo_rec f_norec =
+>     let rec f = memoize (fun x -> f_norec f x) in
+>     f
+>  ;;
+> Characters 39-69:
+> Error: This kind of expression is not allowed as right-hand side of `let rec'
+> ```
+> OCaml拒绝了这个定义，因为OCaml是一种强类型语言，对可以放在`let rec`右边的东西有限制。想像下面的代码会如何编译：
+> ```ocaml
+> let rec x = x + 1
+> ```
+> 注意`x`是一个普通值，不是函数。因此编译器会如何处理这个定义并不清楚。你可能以为它会被编译成一个无限循环，但`x`是`int`型的，又不存在一个和无限循环相对应的`int`。因此，这个结构是绝对无法编译的。
+>
+> 要避免这种不可能的情况，编译器在`let rec`右边只允许三种结构：一个函数定义，一个构造函数，或一个惰性值。这排除了一些合理的东西，如我们的`memo_rec`定义，但它同样也挡住了不合理的东西，像我们对`x`的定义。
+>
+> 值得一提的是在一种像Haskell这样的惰性语言中不会有这个问题。实际上，我们可以使用OCaml的惰性特性使类似上面`x`的定义可行：
+> ```ocaml
+> # let rec x = lazy (Lazy.force x + 1);;
+> val x : int lazy_t = <lazy>
+> ```
+> 当前，真的试图计算会失败。Ocaml的`lazy`在一个惰性值试图把强制求值自己作用计算的一部分时会抛异常.
+> ```ocaml
+> # Lazy.force x;;
+> Exception: Lazy.Undefined.
+> ```
+> 但我们还是可以用`lazy`创建有用的递归定义。实际上，我们可以用惰性来定义我们的`memo_rec`，而不是显式修改：
+> ```ocaml
+> # let lazy_memo_rec f_norec x =
+>     let rec f = lazy (memoize (fun x -> f_norec (Lazy.force f) x)) in
+>     (Lazy.force f) x
+>   ;;
+> val lazy_memo_rec : (('a -> 'b) -> 'a -> 'b) -> 'a -> 'b = <fun>
+> # time (fun () -> lazy_memo_rec fib_norec 40);;
+> Time: 0.0650883ms
+> - : int = 102334155
+> ```
+> 惰性比显式修改有更多的约束，所以有时会使代码更易懂。
+
+### 输入输出
 #### Terminal I/O
 #### Formatted Output with printf
 #### File I/O
