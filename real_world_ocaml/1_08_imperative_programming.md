@@ -723,10 +723,210 @@ Time: 0.500917ms
 > ```
 > 惰性比显式修改有更多的约束，所以有时会使代码更易懂。
 
+
 ### 输入输出
-#### Terminal I/O
-#### Formatted Output with printf
-#### File I/O
+命令式编程可不只修改内存数据这么些。任何参数和返回值没有确实转换关系的函数本质都是命令式的。这不仅包括修改你的程序数据，还有和程序外部世界交互的操作。其中一个重要例子就是I/O，即从文件、终端输入输出和网络套接字读写数据的操作。
+
+OCaml中有好几个I/O库。本节我们要讨论OCaml带缓存的I/O库，可以通过Core的`In_channel`和`Out_channel`模块使用。其它I/O原语可以通过Core的`Unix`模块和`Async`获得，异步I/O库在[18章](https://github.com/zforget/translation/blob/master/real_world_ocaml/2_18_concurrent_programming_with_async.md)介绍。Core的`In_channel`和`Out_channel`模块（包括`Unix`模块）的多数功能都源于标准库，但此处我们会使用Core的接口。
+
+#### 终端I/O
+OCaml的带缓存I/O库围绕两个类型组织：`in_channel`，用以读取的通道，和`out_channel`，用以写入的通道。`In_channel`和`Out_channel`模块只直接支持文件和终端相关的通道，其它类型的通道可以通过`Unix`模块创建。
+
+我们对I/O的讨论先聚焦于终端。沿用Unix模型，和终端的通信组织成三个通道，分别对应于Unix中的三个标准文件描述符：
+- In_channel.stdin
+  标准输入通道。默认是来自终端的输入，处理键盘输入。
+- Out_channel.stdout
+  标准输出通道。默认向用户终端的`stdout`的输出。
+- Out_channel.stderr
+  标准错误通道。和`stdout`类似，但是目标为了错误消息。
+
+`stdin`、`stdout`和`stderr`非常有用，以至于它们可以在全局作用域中直接使用，不需要通过`In_channel`和`Out_channel`模块。
+
+让我们看一下它们在一个简单命令式程序中的应用。下面的程序，`time_converter`，提示用户输入一个时区，然后打印那个时区的当前时间。这里，我们使用了Core的`Zone`模块地查询时区，用`Time`模块来计算当前时间并以相应的时区打印出来：
+```ocaml
+(* 本例中Zone似乎要使用Core.Zone *)
+open Core.Std
+
+let () =
+  Out_channel.output_string stdout "Pick a timezone: ";
+  Out_channel.flush stdout;
+  match In_channel.input_line stdin with
+  | None -> failwith "No timezone provided"
+  | Some zone_string ->
+    let zone = Zone.find_exn zone_string in
+    let time_string = Time.to_string_abs (Time.now ()) ~zone in
+    Out_channel.output_string stdout
+      (String.concat
+        ["The time in ";Zone.to_string zone;" is ";time_string;".\n"]);
+    Out_channel.flush stdout
+```
+我们可以使用corebuild构建程序并运行之。你会看到它提示你输入，如下所示：
+```bash
+$ corebuild time_converter.byte
+$ ./time_converter.byte
+Pick a timezone:
+```
+然后你可以输入一个时区名按回车，它就会打印出那个时区的当前时间：
+```bash
+Pick a timezone: Europe/London
+The time in Europe/London is 2013-08-15 00:03:10.666220+01:00.
+```
+我们在`stdout`上调用`Out_channel.flush`，因为`out_channel`是带缓存的，就是说OCaml不会每次调用`outpt_string`后立即执行一个写操作。而是将写操作缓存，直到写了足够多从而触发了缓存刷新，或是显式请求了一个刷新操作。通过减少系统调用次数极大增加了写处理的效率。
+
+注意`In_channel.input_line`返回一个字符串`option`，`None`表示输入流结束（即，一个文件结束条件）。`Out_channel.output_string`用以打印最后的输出，并调用`Out_channel.flush`把输出刷新到屏幕上。最后的那个刷新技术上说是不需要的，因为程序接着就结束了，此时所有剩余的输出都会被刷新，但显式的刷新仍不失为一个好实践。
+
+#### 使用`printf`格式化输出
+像`Out_channel.output_string`这样的生成输出的函数很简单且容易理解，但是有点冗长。OCaml也支持使用`printf`函数格式化输出，它仿照了C语言标准库中的`printf`。`printf`接收一个描述打印内容和格式的格式化字符串，还有要打印的参数，由格式化字符串中的格式化指令确定。然后，我们就可以写出以下例子：
+```ocaml
+# printf "%i is an integer, %F is a float, \"%s\" is a string\n"
+    3 4.5 "five";;
+3 is an integer, 4.5 is a float, "five" is a string
+- : unit = ()
+```
+和C语言的`printf`不同，OCaml中的`printf`是类型安全的。如果我们提供一个和格式化字符串中的类型不匹配的参数，会得到一个类型错误：
+```ocaml
+# printf "An integer: %i\n" 4.5;;
+Characters 26-29:
+Error: This expression has type float but an expression was expected of type
+int
+```
+-----
+##### 理解格式化字符串
+`printf`中使用的格式化字符串和普通的字符串有很大的不同。这种不同是因为OCaml中的格式化字符串，不像C语言中的，是类型安全的。编译器会检查格式化字符中引用的类型和`printf`其余参数类型的匹配。
+
+为了检查这一点，OCaml需要在编译期分析格式化字符串的内容，这意味着格式化字符串需要在编译期就是一个可获得的字符串常量。实际上，如果你试图传递一个普通字符串给`printf`，编译器会报错：
+```ocaml
+# let fmt = "%i is an integer, %F is a float, \"%s\" is a string\n";;
+val fmt : string = "%i is an integer, %F is a float, \"%s\" is a string\n"
+# printf fmt 3 4.5 "five";;
+Characters 9-12:
+Error: This expression has type string but an expression was expected of type
+         ('a -> 'b -> 'c -> 'd, out_channel, unit) format =
+           ('a -> 'b -> 'c -> 'd, out_channel, unit, unit, unit, unit)
+           format6
+```
+如果OCaml推导出一个给定的字符串是一个格式化字符串，它就会在编译期解析它，根据找到的格式化指令选择其类型。因此，如果我们添加一个类型注释表明我们定义的字符串实际上是一个格式化字符串，它就会被像下面这样解释：
+```ocaml
+# let fmt : ('a, 'b, 'c) format =
+    "%i is an integer, %F is a float, \"%s\" is a string\n";;
+val fmt : (int -> float -> string -> 'c, 'b, 'c) format = <abstr>
+```
+于是我们可以把它传给`printf`：
+```ocaml
+# printf fmt 3 4.5 "five";;
+3 is an integer, 4.5 is a float, "five" is a string
+- : unit = ()
+```
+如果这看起来和你之前看到的不一同样，那是因为它确实不一样。这确实是类型系统的特例。大多数时候，你不需要关心这种对格式化字符串的特殊处理--你可以使用`printf`而无需关心细节。但脑子里对这一点有一个大体印象还是有用的。
+
+-----
+
+现在看看可以如何使用`printf`重写时间转换程序，使它更简洁一点：
+```ocaml
+open Core.Std
+
+let () =
+  printf "Pick a timezone: %!";
+  match In_channel.input_line stdin with
+  | None -> failwith "No timezone provided"
+  | Some zone_string ->
+    let zone = Zone.find_exn zone_string in
+    let time_string = Time.to_string_abs (Time.now ()) ~zone in
+    printf "The time in %s is %s.\n%!" (Zone.to_string zone) time_string
+```
+上例中，我们只使用两个格式化指令：`%s`，用以包含一个字符串，和`%!`，使`printf`刷新通道。
+
+`printf`的格式化指令提供了很多控制，让你可以指定下面的内容：
+- 对齐和填充
+- 字符串转义规则
+- 数字应该格式化为十进制、十六进制还是二进制
+- 浮点转换精度
+
+还有一些类`printf`的函数，输出目标不是`stdout`，包括：
+- `eprintf`，打印到`stderr`
+- `fprintf`，打印到任意通道
+- `sprintf`，返回一个格式化的字符串
+
+这些，还有更多的内容，在OCaml手册的`Printf`模块API文档中都有描述。
+
+#### 文件I/O
+`in_channel`和`out_channel`另一个常见应用是和文件一起使用。这里有几个函数--一个创建一个全是数字的文件，另一个从这个文件中读取并返回这些数字的和：
+```ocaml
+# let create_number_file filename numbers =
+    let outc = Out_channel.create filename in
+    List.iter numbers ~f:(fun x -> fprintf outc "%d\n" x);
+    Out_channel.close outc
+  ;;
+val create_number_file : string -> int list -> unit = <fun>
+# let sum_file filename =
+    let file = In_channel.create filename in
+    let numbers = List.map ~f:Int.of_string (In_channel.input_lines file) in
+    let sum = List.fold ~init:0 ~f:(+) numbers in
+    In_channel.close file;
+    sum
+  ;;
+val sum_file : string -> int = <fun>
+# create_number_file "numbers.txt" [1;2;3;4;5];;
+- : unit = ()
+# sum_file "numbers.txt";;
+- : int = 15
+```
+这两个函数都使用相同的基本流程：先创建通道，然后使用通道，最后关闭通道。关闭通道很重要，要不然，就不会释放文件背后相关的操作系统资源。
+
+上面代码的问题是如果中间抛出异常，通道就不会关闭。如果读一个实际上不包含数字的文件，就会得到一个错误：
+```ocaml
+# sum_file "/etc/hosts";;
+Exception: (Failure "Int.of_string: \"127.0.0.1 localhost\"").
+```
+如果我们在一个循环里一遍一遍这样做，最终会耗尽文件描述符：
+```ocaml
+# for i = 1 to 10000 do try ignore (sum_file "/etc/hosts") with _ -> () done;;
+- : unit = ()
+# sum_file "numbers.txt";;
+Exception: (Sys_error "numbers.txt: Too many open files").
+```
+现在，要打开更多文件你就必须要重启toplevel。
+
+要避免这种情况，你就要保证你的代码在调用后会完成清理工作。我们可以用[第七章](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_07_error_handling.md)中描述的`protect`函数来做到这一点，如下所示：
+```ocaml
+# let sum_file filename =
+    let file = In_channel.create filename in
+    protect ~f:(fun () ->
+        let numbers = List.map ~f:Int.of_string (In_channel.input_lines file) in
+        List.fold ~init:0 ~f:(+) numbers)
+    ~finally:(fun () -> In_channel.close file)
+  ;;
+val sum_file : string -> int = <fun>
+```
+现在文件描述符就不会泄漏了。
+```ocaml
+# for i = 1 to 10000 do try ignore (sum_file "/etc/hosts") with _ -> () done;;
+- : unit = ()
+# sum_file "numbers.txt";;
+- : int = 15
+```
+这这例子是命令式编程中的一个普遍问题。使用命令式编程时，你需要特别小心，不要让异常破坏程序的状态。
+
+`In_channel`有一些函数可以自动处理其中的一些细节。如，`In_channel.with_file`接收一个文件名和一个处理`in_channel`中数据的函数，会小心处理相关的打开和关闭操作。我们可以使用它重写`sum_file`，如下所示：
+```ocaml
+# let sum_file filename =
+    In_channel.withfile filename ~f:(fun file ->
+      let numbers = List.map ~f:Int.of_string (In_channel.input_lines file) in
+      List.fold ~init:0 ~f:(+) numbers)
+  ;;
+```
+我们的`sum_file`实现的另一个不足是我们在处理之前就把整个文件读入内存。对于巨大的文件，一次处理一行更高效。你可以使用`In_channel.fold_lines`函数来做到一点：
+```ocaml
+# let sum_file filename =
+    In_channel.with_file filename ~f:(fun file ->
+      In_channel.fold_lines file ~init:0 ~f:(fun sum line ->
+        sum + Int.of_string line))
+  ;;
+val sum_file : string -> int = <fun>
+```
+这里只是小试了一下`In_channel`和`Out_channel`。要有更完整的理解，你应该去看这些模块的API文档。
+
+### 求值顺序
 
 ### Side Effects and Weak Polymorphism
 #### The Value Restriction
