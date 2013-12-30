@@ -927,9 +927,9 @@ val sum_file : string -> int = <fun>
 这里只是小试了一下`In_channel`和`Out_channel`。要有更完整的理解，你应该去看这些模块的API文档。
 
 ### 求值顺序
-表达式求值顺序是定义一门编程语言的重要部分，在命令式编程中尤为重要。你碰到的大多数编程语言都是 *严格的*，OCaml也是。在一门严格的语言中，非你把一个标识符绑定到一些表达式的结果时，表达求值要先于变量绑定。类似的，如果你在一组参数上调用函数，那些参数都在传给函数前求值。
+表达式求值顺序是定义一门编程语言的重要部分，在命令式编程中尤为重要。你碰到的大多数编程语言都是 *严格的*，OCaml也是。在一门严格的语言中，当你把一个标识符绑定到一些表达式的结果时，表达求值要先于变量绑定。类似的，如果你在一组参数上调用函数，那些参数都在传给函数前求值。
 
-考虑下面这个简单例子。我们有一组角度，想要确定它们中是否有负的sin值。下面的代码片可以回答这个问题：
+考虑下面这个简单例子。我们有一组角度，想要确定它们中是否有负的`sin`值。下面的代码片可以回答这个问题：
 ```ocaml
 # let x = sin 120. in
   let y = sin 75.  in
@@ -940,7 +940,7 @@ val sum_file : string -> int = <fun>
 ```
 在某种意义上，我们不需要求值`sin 128.`。因为`sin 75.`是负的，所以我们在计算`sin 128.`之前就已经知道答案了。
 
-不必非要如此。使用`lazy`关键字，我们可以重写原始计算，这样`sin 128.`就不会计算了：
+但不必非要如此。使用`lazy`关键字，我们可以重写原始计算，这样`sin 128.`就不会计算了：
 ```ocaml
 # let x = lazy (sin 120.) in
   let y = lazy (sin 75.)  in
@@ -949,7 +949,7 @@ val sum_file : string -> int = <fun>
   ;;
 - : bool = true
 ```
-我们可以放置一些打印确认这一点：
+我们可以放置一些打印来确认这一点：
 ```ocaml
 # let x = lazy (printf "1\n"; sin 120.) in
   let y = lazy (printf "2\n"; sin 75.)  in
@@ -960,7 +960,7 @@ val sum_file : string -> int = <fun>
 2
 - : bool = true
 ```
-OCamll默认是严格的原因很合理：惰性求值和命令式编程通常不好混用，因为惰性使推导一个副作用何时发生变得更困难。理解副作用调用顺序对推导一个命令式程序至关重要。
+OCaml默认是严格的原因很合理：惰性求值和命令式编程通常不好混用，因为惰性使推导一个副作用何时发生变得更困难。理解副作用调用顺序对推导一个命令式程序至关重要。
 
 在一门严格的语言中，我们知道一系列用`let`绑定的表达式会按定义的顺序求值。但同一个表达式中的求值顺序呢？官方的说法是，表达式内部的求值顺序是未定义的。实际上，OCaml只有一个编译器，其行为即是事实标准。但不幸的是，求值顺序经常和预期相反。
 
@@ -994,7 +994,7 @@ val remember : '_a -> '_a = <fun>
 
 `remember`不是一个很有用的函数，但它抛出了一个有趣的问题：其类型是什么呢？
 
-第一次调用时，`remember`返回传给它的值，这意味着其输出输出类型要匹配。相应的，对类型`t`，`remember`的类型应该是`t -> t`。没有什么东西需要`remeber`对`t`的选择要绑定到特定类型上，所以你可能期待OCaml会将其一般化，用一个多态类型代替`t`。s就是这种泛化，给了我们多态类型。举个例子，`identity`函数，就是这样获得多态类型的：
+第一次调用时，`remember`返回传给它的值，这意味着其输入输出类型要匹配。相应的，对类型`t`，`remember`的类型应该是`t -> t`。`remeber`对`t`的选择不必非要绑定到特定类型上，所以你可能期待OCaml会将其一般化，用一个多态类型代替`t`。就是这种泛化，给了我们多态类型。举个例子，`identity`函数，就是这样获得多态类型的：
 ```ocaml
 # let identity x = x;;
 val identity : 'a -> 'a = <fun>
@@ -1005,10 +1005,144 @@ val identity : 'a -> 'a = <fun>
 ```
 如你所见，`identity`的多态类型使其可以操作不同类型的值。
 
-但这不适用于`remember`。
+但这不适用于`remember`。在上例中你已经看到了，OCaml推导出的`remember`类型看起来和`identity`很像，但又不完全一样。再看一下：
+```ocaml
+val remember : '_a -> '_a = <fun>
+```
+类型变量`'_a`中的下划线告诉我们这个变量仅仅是 *弱多态*的，就是说它可以被用在任何 *单独*类型上。这是合理的，因为，不像`identity`，`remember`总是返回第一次调用时传给它的值，这意味着其返回值都是相同类型的。
 
-#### The Value Restriction
-#### Partial Application and the Value Restriction
-#### Relaxing the value Restriction
+OCaml一旦知道了要使用的具体类型，就会把弱多态转换成一个具体类型：
+```ocaml
+# let remember_three () = remember 3;;
+val remember_three : unit -> int = <fun>
+# remember;;
+- : int -> int = <fun>
+# remember "avocado";;
+Characters 9-18:
+Error: This expression has type string but an expression was expected of type
+int
+```
+注意`remember`的类型由`remember_three`确定，尽管它从未被调用。
+
+#### 值约束
+那么，编译器何时会推导出弱多态类型呢？正如你看到的，当一个类型未知的值保存在一个永久可变单元中时，我们需要弱多态类型。因为类型系统没有精确到可以确定所有可能情况，OCaml使用了一种简单的规则来标记不引入任何永久可变单元的情况，只在那些情况下推导出多态类型。这条规则叫作 *值约束*.
+
+值约束的核心是一些类型的表达式，我们称之为 *简单值*，本质上就不能引入可变单元：
+- 常量（即，整数和浮点数字面值一类的东西）
+- 只包含简单值的构造函数
+- 函数声明，即，以`fun`或`function`开头的表达式，或其等价的`let`绑定，`let f x = ...`
+- 形如`let var = expr1 in expr2`的`let`绑定，其中`expr1`和`expr2`都是简单值
+
+因此，下面的表达式是一个简单值，所以其中包含的值的类型允许是多态的：
+```ocaml
+# (fun x -> [x;x];;
+- : 'a -> 'a list = <fun>
+```
+但如果我们写一个按上面的定义不是简单值的表达式，就会得到不同的结果。举个例子，考虑如果我们要记忆前面的定义的函数：
+```ocaml
+# memoize (fun x -> [x;x]);;
+- : '_a -> '_a list = <fun>
+```
+函数的记忆版本实际上需要被限制到一个类型上，因为它后台使用可变状态来缓存该函数前面调用的结果。但即使是这个函数没有做这一点，OCaml还是会得出同样的结论。看下面的例子：
+```ocaml
+# identity (fun x -> [x;x]);;
+- : '_a -> '_a list = <fun>
+```
+这里推导出一个完全多态的变量是安全的，但因为OCaml的类型系统不区分纯的和不纯的函数，它无法区分这两种情况。
+
+值约束不要求没有可变状态，只是要没有 *永久的*的可变状态在同一个函数的调用之间共享数据。因此，一个每次调用都会产生新的引用的函数也可能是完全多态的：
+```ocaml
+# let f () = ref None;;
+val f : unit -> 'a option ref = <fun>
+```
+但用有跨多次调用的永久可变缓存的函数，像`momoize`，就只能是弱多态的。
+
+#### 偏特化应用和值约束
+大多数时候，值约束起作用时都是合理的，即，因为这个值实际上只能安全地用在单独一个类型上。但有时，值约束不是你想要的。这些情况中最常见的就是偏特化应用函数。一个偏特化应用函数，像函数应用一样都不是简单值，所以，用偏特化创建的函数有时没有你想像的那么通用。
+
+看一下`List.init`函数，用以创建一个列表，列表的每一个元素都是在其索引上调用一个函数创建的：
+```ocaml
+# List.init;;
+- : int -> f:(int -> 'a) -> 'a list = <fun>
+# List.init 10 ~f:Int.to_string;;
+- : string list = ["0"; "1"; "2"; "3"; "4"; "5"; "6"; "7"; "8"; "9"]
+```
+如果我们创建一个特殊版本的`List.init`，总是创建长度为10的列表。我们可以使用偏特化应用来做，如下所示：
+```ocaml
+# let list_init_10 = List.init 10;;
+val list_init_10 : f:(int -> '_a) -> '_a list = <fun>
+```
+可以看到，我们现在为返回的函数推导出一个弱多态类型。这是因为没有什么能保证`List.init`不会在内部创建一个持久的`ref`，可以跨多个`list_init_10`调用。通过避免偏特化应用，我们可以消除这种可能性，同时使编译器推导出一个多态类型：
+```ocaml
+# let list_init_10 ~f = List.init 10 ~f;;
+val list_init_10 : f:(int -> 'a) -> 'a list = <fun>
+```
+这种转换被称为 *eta expansion*，常用于解决值约束引发的问题。
+
+#### 放松值约束
+OCaml对多态类型的推导实际上比上面说的要好一些。值约束基本上是一个语法检查：你可以做一些简单值的操作，任何是简单值的东西都可以泛化。
+
+但OCaml实际上有一个宽松版的值约束，可以利用类型信息来允许不是简单值的多态类型。
+
+例如，我们看到一个函数调用，即使是像`identity`这么简单的，也不是一个简单值，会把一个多态值变成一个弱多态值：
+```ocaml
+# identity (fun x -> [x;x]);;
+- : '_a -> '_a list = <fun>
+```
+但并不总是这样。当返回值是不可变的时，OCaml就会推导出一个完全多态类型：
+```ocaml
+# identity [];;
+- : 'a list = []
+```
+另一方面，如果返回类型是潜在可变的，那么结果就是弱多态的：
+```ocaml
+# [||];;
+- : 'a array = [||]
+# identity [||];;
+- : '_a array = [||]
+```
+关于这一点，一个更重要的例子来自定义抽象数据类型。看下面这个不可变列表类型的简单数据结构，它支持常数级的拼接操作：
+```ocaml
+# module Concat_list : sig
+    type 'a t
+    val empty : 'a t
+    val singleton : 'a -> 'a t
+    val concat  : 'a t -> 'a t -> 'a t  (* constant time *)
+    val to_list : 'a t -> 'a list  (* linear time *)
+  end = struct
+  
+    type 'a t = Empty | Singleton of 'a | Concat of 'a t * 'a t
+
+    let empty = Empty
+    let singleton x = Singleton x
+    let concat x y = Concat (x,y)
+
+    let rec to_list_with_tail t tail =
+    match t with
+    | Empty -> tail
+    | Singleton x -> x :: tail
+    | Concat (x,y) -> to_list_with_tail x (to_list_with_tail y tail)
+    
+  let to_list t =
+    to_list_with_tail t []
+
+  end;;
+module Concat_list :
+  sig
+    type 'a t
+    val empty : 'a t
+    val singleton : 'a -> 'a t
+    val concat : 'a t -> 'a t -> 'a t
+    val to_list : 'a t -> 'a list
+  end
+```
+此处实现细节不重要，重要的是`Concat.t`是一个明确的不可变值。但遇到值约束时，OCaml会将其看成可能变化的：
+```ocaml
+# Concat_list.empty;;
+- : 'a Concat_list.t = <abstr>
+# identity Concat_list.empty;;
+- : '_a Concat_list.t = <abstr>
+```
+问题在于其签名，抽象性掩盖了`Concat_list.t`是不可变数据这个事实。我们可以使用下面两种中的任一种方法来解决此问题：或使类型具体化（即在mli文件中暴露实现），这通常不令人满意；或把类型变量标记成 *协变量(covariant.)*。关于协变量和抗变性我们会在第11章会学习更多，但现在，你可以把它理解成一个可以放在一个纯函数式数据结构接口中的标注。
 
 ### Summary
