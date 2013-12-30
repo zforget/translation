@@ -927,8 +927,86 @@ val sum_file : string -> int = <fun>
 这里只是小试了一下`In_channel`和`Out_channel`。要有更完整的理解，你应该去看这些模块的API文档。
 
 ### 求值顺序
+表达式求值顺序是定义一门编程语言的重要部分，在命令式编程中尤为重要。你碰到的大多数编程语言都是 *严格的*，OCaml也是。在一门严格的语言中，非你把一个标识符绑定到一些表达式的结果时，表达求值要先于变量绑定。类似的，如果你在一组参数上调用函数，那些参数都在传给函数前求值。
 
-### Side Effects and Weak Polymorphism
+考虑下面这个简单例子。我们有一组角度，想要确定它们中是否有负的sin值。下面的代码片可以回答这个问题：
+```ocaml
+# let x = sin 120. in
+  let y = sin 75.  in
+  let z = sin 128. in
+  List.exists ~f:(fun x -> x < 0.) [x;y;z]
+  ;;
+- : bool = true
+```
+在某种意义上，我们不需要求值`sin 128.`。因为`sin 75.`是负的，所以我们在计算`sin 128.`之前就已经知道答案了。
+
+不必非要如此。使用`lazy`关键字，我们可以重写原始计算，这样`sin 128.`就不会计算了：
+```ocaml
+# let x = lazy (sin 120.) in
+  let y = lazy (sin 75.)  in
+  let z = lazy (sin 128.) in
+  List.exists ~f:(fun x -> Lazy.force x < 0.) [x;y;z]
+  ;;
+- : bool = true
+```
+我们可以放置一些打印确认这一点：
+```ocaml
+# let x = lazy (printf "1\n"; sin 120.) in
+  let y = lazy (printf "2\n"; sin 75.)  in
+  let z = lazy (printf "3\n"; sin 128.) in
+  List.exists ~f:(fun x -> Lazy.force x < 0.) [x;y;z]
+  ;;
+1
+2
+- : bool = true
+```
+OCamll默认是严格的原因很合理：惰性求值和命令式编程通常不好混用，因为惰性使推导一个副作用何时发生变得更困难。理解副作用调用顺序对推导一个命令式程序至关重要。
+
+在一门严格的语言中，我们知道一系列用`let`绑定的表达式会按定义的顺序求值。但同一个表达式中的求值顺序呢？官方的说法是，表达式内部的求值顺序是未定义的。实际上，OCaml只有一个编译器，其行为即是事实标准。但不幸的是，求值顺序经常和预期相反。
+
+看下面的例子：
+```ocaml
+# List.exists ~f:(fun x -> x < 0.)
+  [ (printf "1\n"; sin 120.);
+    (printf "2\n"; sin 75.);
+    (printf "3\n"; sin 128.); ]
+;;
+3
+2
+1
+- : bool = true
+```
+这里，你会看到最后出现的子表达式实际上是最先计算的。许多类型的表达式都是这样的。如果你要明确子表达式的求值顺序，只能用一系列`let`绑定表达它们。
+
+### 副作用和弱多态
+看一下下面这个简单的命令式程序：
+```ocaml
+# let remember =
+    let cache = ref None in
+    (fun x ->
+      match !cache with
+      | Some y -> y
+      | None -> cache := Some x; x)
+  ;;
+val remember : '_a -> '_a = <fun>
+```
+`remeber`只是简单地缓存了传给它的第一个值，每次调用都返回这个值。因为`cache`在`remember`调用之间只被创建和初始化一次。
+
+`remember`不是一个很有用的函数，但它抛出了一个有趣的问题：其类型是什么呢？
+
+第一次调用时，`remember`返回传给它的值，这意味着其输出输出类型要匹配。相应的，对类型`t`，`remember`的类型应该是`t -> t`。没有什么东西需要`remeber`对`t`的选择要绑定到特定类型上，所以你可能期待OCaml会将其一般化，用一个多态类型代替`t`。s就是这种泛化，给了我们多态类型。举个例子，`identity`函数，就是这样获得多态类型的：
+```ocaml
+# let identity x = x;;
+val identity : 'a -> 'a = <fun>
+# identity 3;;
+- : int = 3
+# identity "five";;
+- : string = "five"
+```
+如你所见，`identity`的多态类型使其可以操作不同类型的值。
+
+但这不适用于`remember`。
+
 #### The Value Restriction
 #### Partial Application and the Value Restriction
 #### Relaxing the value Restriction
