@@ -1145,4 +1145,42 @@ module Concat_list :
 ```
 问题在于其签名，抽象性掩盖了`Concat_list.t`是不可变数据这个事实。我们可以使用下面两种中的任一种方法来解决此问题：或使类型具体化（即在mli文件中暴露实现），这通常不令人满意；或把类型变量标记成 *协变量(covariant.)*。关于协变量和抗变性我们会在第11章会学习更多，但现在，你可以把它理解成一个可以放在一个纯函数式数据结构接口中的标注。
 
-### Summary
+实践中，如果你用`+'a`代替接口的`'a`，就是显式地表明接口的数据结构不会包含类型`'a`的持久引用，这样，OCaml就可以为这个类型的表达式推导多态类型，即使它不是简单类型：
+```ocaml
+# module Concat_list : sig
+    type +'a t
+    val empty : 'a t
+    val singleton : 'a -> 'a t
+    val concat  : 'a t -> 'a t -> 'a t  (* constant time *)
+    val to_list : 'a t -> 'a list  (* linear time *)
+  end = struct
+
+    type 'a t = Empty | Singleton of 'a | Concat of 'a t * 'a t
+    
+    ...
+    
+  end;;
+module Concat_list :
+ sig
+  type '+a t
+  val empty : 'a t
+  val singleton : 'a -> 'a t
+  val concat : 'a t -> 'a t -> 'a t
+  val to_list : 'a t -> 'a list
+end
+```
+现在我们就可以在`Concat_list.empty`上施加`identity`函数而不必损失多态性了：
+```ocaml
+# identity Concat_list.empty;;
+- : 'a Concat_list.t = <abstr>
+```
+
+### 总结
+本章内容很多，包括：
+- 讨论了可变数据结构的构造块，也是基本的原生命令式结构，如`for`循环、`while`循环、和序列操作符`;`
+- 过了一遍一些经典命令式数据结构的实现
+- 讨论了被称了温和影响的记忆和惰性
+- 涉及了OCaml的阻塞I/O API
+- 讨论了一些语言层面的问题，如求值顺序和弱多态，是如何与OCaml的命令式特性相互作用的
+
+材料的范围和复杂性反映了OCaml中命令式特性的重要程度。OCaml默认是不可变的这一点并不能掩盖命令式编程也是构建任何严肃程序的基础之一这个事实，如果你相成为一个高效的OCaml程序员，就需要理解OCaml的命令式编程方法。
