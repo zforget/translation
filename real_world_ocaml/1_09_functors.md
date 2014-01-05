@@ -145,13 +145,13 @@ module Int_interval :
 ```ocaml
 # module Int_interval = Make_interval(Int) ;;
 module Int_interval :
-sig
-type t = Make_interval(Core.Std.Int).t = Interval of int * int | Empty
-val create : int -> int -> t
-val is_empty : t -> bool
-val contains : t -> int -> bool
-val intersect : t -> t -> t
-end
+  sig
+   type t = Make_interval(Core.Std.Int).t = Interval of int * int | Empty
+   val create : int -> int -> t
+   val is_empty : t -> bool
+   val contains : t -> int -> bool
+   val intersect : t -> t -> t
+  end
 # module String_interval = Make_interval(String) ;;
 module String_interval :
   sig
@@ -208,9 +208,357 @@ Error: This expression has type Rev_int_interval.t
 ```
 这很重要，因为混淆两种区间在语义上是错误的，这是个很容易犯的错误。函子创建新类型的能力是一个有用的技巧，有多用途。
 
-#### Making the Functor Abstract
-#### Sharing Constraints
-#### Destructive Substitution
-#### Using Multiple Interface
+#### 抽象化函子
+`Make_interval`有一个问题。我们写代码依赖于上边界的变量大于下边界的变量，但这些变量可能违反这一点。变量由`create`函数限制的，但是由于`Interval.t`不是抽象的，我们可以绕开它：
+```ocaml
+# Int_interval.is_empty (* going through create *)
+(Int_interval.create 4 3) ;;
+- : bool = true
+# Int_interval.is_empty (* bypassing create *)
+(Int_interval.Interval (4,3)) ;;
+- : bool = false
+```
+为了抽象化`Interval.t`，我们需要使用一个接口限制`Make_interval`的输出。下面即是一个可用于此的接口：
+```ocaml
+# module type Interval_intf = sig
+    type t
+    type endpoint
+    val create : endpoint -> endpoint -> t
+    val is_empty : t -> bool
+    val contains : t -> endpoint -> bool
+    val intersect : t -> t -> t
+  end;;
+module type Interval_intf =
+  sig
+    type t
+    type endpoint
+    val create : endpoint -> endpoint -> t
+    val is_empty : t -> bool
+    val contains : t -> endpoint -> bool
+    val intersect : t -> t -> t
+  end
+```
+此接口包含了一个`endpoint`类型，使我们可以引用端点的类型。有了这个接口，我们可以重新定义`Make_interval`。注意，在模块实现中也加入了`endpoint`类型以和`Interval_intf`相匹配:
+```ocaml
+# module Make_interval(Endpoint : Comparable) : Interval_intf = struct
+    type endpoint = Endpoint.t
+    type t = | Interval of Endpoint.t * Endpoint.t
+             | Empty
 
-### Extending Modules
+    ...
+
+  end ;;
+module Make_interval : functor (Endpoint : Comparable) -> Interval_intf
+```
+
+#### 共享约束
+这样返回的模块是抽象了，但不幸的是太抽象了。实际上，我们没有暴露类型`endpoint`，这意味着我们甚至都不能构建任何区间了：
+```ocaml
+# module Int_interval = Make_interval(Int);;
+module Int_interval :
+  sig
+    type t = Make_interval(Core.Std.Int).t
+    type endpoint = Make_interval(Core.Std.Int).endpoint
+    val create : endpoint -> endpoint -> t
+    val is_empty : t -> bool
+    val contains : t -> endpoint -> bool
+    val intersect : t -> t -> t
+  end
+# Int_interval.create 3 4;;
+Characters 20-21:
+Error: This expression has type int but an expression was expected of type
+         Int_interval.endpoint
+```
+要修复这个问题，我们需要暴露一个事实，就是`endpoint`等价于`Int.t`（或更一般的，等价于`Endpoint.t`，其中`Endpoint`是传给函子的参数）。其中一个方法是通过 *共享约束*，允许你告诉编译器将给定的类型和其它某类型等价这个事实暴露出来。简单的语法如下所示：
+```ocaml
+<Module_type> with type <type> = <type'>
+```
+这个表达式的结果就是一个新的签名，所做的修改暴露了`Module_type`模块中定义的`type`和外面定义的`type'`等价。可以对一个签名应用多个共享约束：
+```ocaml
+Module_type> with type <type1> = <type1'> and <type2> = <type2'>
+```
+我们可以使用共享约束针对整数区间创建一个`Interval_intf`的特殊版本：
+```ocaml
+# module type Int_interval_intf =
+    Interval_intf with type endpoint = int;;
+module type Int_interval_intf =
+  sig
+    type t
+    type endpoint = int
+    val create : endpoint -> endpoint -> t
+    val is_empty : t -> bool
+    val contains : t -> endpoint -> bool
+    val intersect : t -> t -> t
+  end
+```
+我们也可以在函子上下文中使用共享约束。最常见是使用场景是你想暴露生成的模块中的某些类型和输入模块中的某些类型相关。
+
+这时，我们会暴露一个新模块中的类型`endpoint`和函子参数模块`Endpoint`中的`Endpoint.t`之间的等价关系。如下所示：
+```ocaml
+# module Make_interval(Endpoint : Comparable)
+      : (Interval_intf with type endpoint = Endpoint.t)
+  = struct
+    type endpoint = Endpoint.t
+    type t = | Interval of Endpoint.t * Endpoint.t
+             | Empty
+
+    ...
+
+  end ;;
+module Make_interval :
+  functor (Endpoint : Comparable) ->
+    sig
+      type t
+      type endpoint = Endpoint.t
+      val create : endpoint -> endpoint -> t
+      val is_empty : t -> bool
+      val contains : t -> endpoint -> bool
+      val intersect : t -> t -> t
+    end
+```
+现在，正如接口显示的那样，`endpoint`等价于`Endpoint.t`。这种等价的结果就是，我们对可以做一些需要暴露`endpoint`的操作了，如构造区间：
+```ocaml
+# module Int_interval = Make_interval(Int);;
+module Int_interval :
+  sig
+    type t = Make_interval(Core.Std.Int).t
+    type endpoint = int
+    val create : endpoint -> endpoint -> t
+    val is_empty : t -> bool
+    val contains : t -> endpoint -> bool
+    val intersect : t -> t -> t
+  end
+# let i = Int_interval.create 3 4;;
+val i : Int_interval.t = <abstr>
+# Int_interval.contains i 5;;
+- : bool = false
+```
+
+#### 破坏式替换
+共享约束基本上能解决问题，但是有一些缺点。我们现在可能就被接口和实现里那乱七八糟的无用`endpoint`声明给烦到了。更好的解决方案是修改`Interval_intf`签名，使用`Endpoint.t`替换`endpoint`，并从签名中删除`endpoint`的定义。我们可以使用 *破坏式替换*来实现。下面是基本语法：
+```ocaml
+<Module_type> with type <type> := <type'>
+```
+下面展示了如何在`Make_interval`上使用：
+```ocaml
+# module type Int_interval_intf =
+    Interval_intf with type endpoint := int;;
+module type Int_interval_intf =
+  sig
+    type t
+    val create : int -> int -> t
+    val is_empty : t -> bool
+    val contains : t -> int -> bool
+    val intersect : t -> t -> t
+  end
+```
+现在`endpoint`类型没有了：所有出现的地方也都换成了`int`。和共享约束一样，它也可以用在函子上下文上：
+```ocaml
+# module Make_interval(Endpoint : Comparable)
+    : Interval_intf with type endpoint := Endpoint.t =
+  struct
+    type t = | Interval of Endpoint.t * Endpoint.t
+             | Empty
+
+    ...
+
+  end ;;
+module Make_interval :
+  functor (Endpoint : Comparable) ->
+  sig
+    type t
+    val create : Endpoint.t -> Endpoint.t -> t
+    val is_empty : t -> bool
+    val contains : t -> Endpoint.t -> bool
+    val intersect : t -> t -> t
+  end
+```
+这个接口恰恰就是我们想要的：类型`t`是抽象的，且类型`endpoint`被暴露；因此我们可以通过`create`函数来创建`Int_interval`类型的值，但不能直接使用构造器，也就不能顺便破坏模块规则了：
+```ocaml
+# module Int_interval = Make_interval(Int);;
+module Int_interval :
+  sig
+    type t = Make_interval(Core.Std.Int).t
+    val create : int -> int -> t
+    val is_empty : t -> bool
+    val contains : t -> int -> bool
+    val intersect : t -> t -> t
+  end
+# Int_interval.is_empty
+    (Int_interval.create 3 4);;
+- : bool = false
+# Int_interval.is_empty
+    (Int_interval.Interval (4,3));;
+Characters 40-48:
+Error: Unbound constructor Int_interval.Interval
+```
+还有，`endpoint`从接口中消失了，就是说我们再也不用在模块体中定义`endpoint`类型的别名了。
+
+值得注意的是这个名字有点误导，在破坏性替换中没有任何破坏性；它只是一种从一个已存在的签名创建一个新签名的方法。
+
+#### 使用多重接口
+另一个我们想要加到区间模块上的特性是序列化能力，即，可以以字节流读写区间。本例中，我们会使用S表达式，在[第七章](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_07_error_handling.md)已经介绍过了。回顾一下，S表达式本质上是一个括号表达式，其原子是字符串，是一种在Core中常用的序列化格式。下面是一个例子：
+```ocaml
+# Sexp.of_string "(This is (an s-expression))";;
+- : Sexp.t = (This is (an s-expression))
+```
+Core带有一个叫作`Sexplib`的语法扩展，可以从一个类型声明自动生成S表达式转换函数。附加`with sexp`到一个类型定义上会触发这个扩展来创建这个转换器。因此，我们可以这样写：
+```ocaml
+# type some_type = int * string list with sexp;;
+type some_type = int * string list
+val some_type_of_sexp : Sexp.t -> int * string list = <fun>
+val sexp_of_some_type : int * string list -> Sexp.t = <fun>
+# sexp_of_some_type (33, ["one"; "two"]);;
+- : Sexp.t = (33 (one two))
+# Sexp.of_string "(44 (five six))" |> some_type_of_sexp;;
+- : int * string list = (44, ["five"; "six"])
+```
+我们会在[第十七章](https://github.com/zforget/translation/blob/master/real_world_ocaml/2_17_data_serialization_with_s_expressions.md)讨论更多类型S表达式和`Sexlib`的细节，但现在，让我们看看如果我们把`with sexp`附加到函子的`t`定义上会怎样：
+```ocaml
+# module Make_interval(Endpoint : Comparable)
+    : (Interval_intf with type endpoint := Endpoint.t) = struct
+    type t = | Interval of Endpoint.t * Endpoint.t
+             | Empty
+    with sexp
+
+    ...
+
+  end ;;
+Characters 136-146:
+Error: Unbound value Endpoint.t_of_sexp
+```
+问题在于`with sexp`会添加代码来定义S表达式转换器，且代码会假设`Endpoint`对`Endpoint.t`已经有了合适的S表达式转换函数。但对于`Endpoint`我们所知的只有它会满足`Comparable`接口，没有关于S表达式的任何信息。
+
+庆幸的是，Core内建了用于此目的的接口，叫`Sexpable`，定义如下:
+```ocaml
+module type Sexpable = sig
+  type t
+  val sexp_of_t : t -> Sexp.t
+  val t_of_sexp : Sexp.t -> t
+end
+```
+我们可以在`Make_interval`的输入输出上都使用`Sexpable`接口。首先，我们创建一个`Interval_intf`的扩展版本，让其包含`Sexable`的接口中的函数。为了避免有多个不同的类型`t`的互相冲突，我们可以在`Sexable`接口上使用破坏式替换做到这一点：
+```ocaml
+# module type Interval_intf_with_sexp = sig
+    include Interval_intf
+    include Sexpable with type t := t
+  end;;
+module type Interval_intf_with_sexp =
+  sig
+    type t
+    type endpoint
+    val create : endpoint -> endpoint -> t
+    val is_empty : t -> bool
+    val contains : t -> endpoint -> bool
+    val intersect : t -> t -> t
+    val t_of_sexp : Sexp.t -> t
+    val sexp_of_t : t -> Sexp.t
+  end
+```
+等价地，我们可以在新模块中定义一个类型`t`，然后在所有被包含的接口上应用破坏式替换，包括`Interval_intf`，如下例所示。这在组合多个接口时或多或少要清楚一些，因为它正确地反映了所有的签名都是被同等对待的：
+```ocaml
+# module type Interval_intf_with_sexp = sig
+    type t
+    include Interval_intf with type t := t
+    include Sexpable  with type t := t
+  end;;
+module type Interval_intf_with_sexp =
+  sig
+    type t
+    type endpoint
+    val create : endpoint -> endpoint -> t
+    val is_empty : t -> bool
+    val contains : t -> endpoint -> bool
+    val intersect : t -> t -> t
+    val t_of_sexp : Sexp.t -> t
+    val sexp_of_t : t -> Sexp.t
+  end
+```
+现在我们可以写出函子本身了。这里我们小地重写了`sexp`转换器，以确保数据结构的不变式在从S表达式中读取时仍会得到维护：
+```ocaml
+# module Make_interval(Endpoint : sig
+                         type t
+                         include Comparable with type t := t
+                         include Sexpable  with type t := t
+                       end)
+    : (Interval_intf_with_sexp with type endpoint := Endpoint.t)
+  = struct
+  
+    type t = | Interval of Endpoint.t * Endpoint.t
+             | Empty
+    with sexp
+    
+    (** [create low high] creates a new interval from [low] to
+        [high].  If [low > high], then the interval is empty *)
+    let create low high =
+      if Endpoint.compare low high > 0 then Empty
+      else Interval (low,high)
+
+    (* put a wrapper around the autogenerated [t_of_sexp] to enforce
+       the invariants of the data structure *)
+    let t_of_sexp sexp =
+      match t_of_sexp sexp with
+      | Empty -> Empty
+      | Interval (x,y) -> create x y
+      
+    (** Returns true iff the interval is empty *)
+    let is_empty = function
+      | Empty -> true
+      | Interval _ -> false
+
+    (** [contains t x] returns true iff [x] is contained in the
+        interval [t] *)
+    let contains t x =
+      match t with
+      | Empty -> false
+      | Interval (l,h) ->
+        Endpoint.compare x l >= 0 && Endpoint.compare x h <= 0
+
+    (** [intersect t1 t2] returns the intersection of the two input
+        intervals *)
+    let intersect t1 t2 =
+      let min x y = if Endpoint.compare x y <= 0 then x else y in
+      let max x y = if Endpoint.compare x y >= 0 then x else y in
+      match t1,t2 with
+      | Empty, _ | _, Empty -> Empty
+      | Interval (l1,h1), Interval (l2,h2) ->
+        create (max l1 l2) (min h1 h2)
+  end;;
+module Make_interval :
+  functor
+    (Endpoint : sig
+                  type t
+                  val compare : t -> t -> int
+                  val t_of_sexp : Sexp.t -> t
+                  val sexp_of_t : t -> Sexp.t
+                end) ->
+    sig
+      type t
+      val create : Endpoint.t -> Endpoint.t -> t
+      val is_empty : t -> bool
+      val contains : t -> Endpoint.t -> bool
+      val intersect : t -> t -> t
+      val t_of_sexp : Sexp.t -> t
+      val sexp_of_t : t -> Sexp.t
+    end
+```
+现在我们正常使用`sexp`转换器了：
+```ocaml
+# module Int_interval = Make_interval(Int) ;;
+module Int_interval :
+  sig
+    type t = Make_interval(Core.Std.Int).t
+    val create : int -> int -> t
+    val is_empty : t -> bool
+    val contains : t -> int -> bool
+    val intersect : t -> t -> t
+    val t_of_sexp : Sexp.t -> t
+    val sexp_of_t : t -> Sexp.t
+  end
+# Int_interval.sexp_of_t (Int_interval.create 3 4);;
+- : Sexp.t = (Interval 3 4)
+# Int_interval.sexp_of_t (Int_interval.create 4 3);;
+- : Sexp.t = Empty
+```
+
+### 扩展模块
