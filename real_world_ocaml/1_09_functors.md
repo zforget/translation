@@ -562,3 +562,120 @@ module Int_interval :
 ```
 
 ### 扩展模块
+函子的另一个常用功能就是以标准方法为给定的模块生成类型相关的功能。让我们看一下在一个函数式队列上下文中是如何使用的，函数式队列就是FIFO（先入先出）队列的函数式版本。函数式，即队列操作会返回新的队列，而不是修改传入的队列。
+
+下面是这个模块的一个合理的mli：
+```ocaml
+type 'a t
+
+val empty : 'a t
+
+(** [enqueue q el] adds [el] to the back of [q] *)
+val enqueue : 'a t -> 'a -> 'a t
+
+(** [dequeue q] returns None if the [q] is empty, otherwise returns
+    the first element of the queue and the remainder of the queue *)
+val dequeue : 'a t -> ('a * 'a t) option
+
+(** Folds over the queue, from front to back *)
+val fold : 'a t -> init:'acc -> f:('acc -> 'a -> 'acc) -> 'acc
+```
+上面的`Fqueue.fold`需要再解释一下。它和[高效使用`List`模块](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_03_lists_and_patterns.md#%E9%AB%98%E6%95%88%E4%BD%BF%E7%94%A8list%E6%A8%A1%E5%9D%97)中描述的`List.fold`函数模式相同。本质上，`Fqueue.fold q ~init ~f`从前向后遍历`q`中的元素，从一个值为`init`的累加器开始，遍历过程中使用`f`更新累加器，在计算结束时返回累加器最终的值。我们会看到，`fold`是一个功能相当强大的操作。
+
+我们会以一个常见的维护输入输出列表的技巧实现`Fqueue`，这样就能高效在输入列表上入队，从输出列表上出队了。如果你试图在输出列表为空时出队，输入列表会反转并变为新的输出列表。下面是实现：
+```ocaml
+open Core.Std
+
+type 'a t = 'a list * 'a list
+
+let empty = ([],[])
+
+let enqueue (in_list, out_list) x =
+  (x :: in_list,out_list)
+
+let dequeue (in_list, out_list) =
+  match out_list with
+  | hd :: tl -> Some (hd, (in_list, tl))
+  | [] ->
+    match List.rev in_list with
+    | [] -> None
+    | hd :: tl -> Some (hd, ([], tl))
+
+let fold (in_list, out_list) ~init ~f =
+  let after_out = List.fold ~init ~f out_list in
+  List.fold_right ~init:after_out ~f:(fun x acc -> f acc x) in_list
+```
+`Fqueue`的一个问题就是接口太少了。大量有用的辅助函数都没有。反观`List`模块，有类似`List.iter`的函数，在每个元素上执行一个函数；还有`List.for_all`，当且仅当给定的谓词在列表所有元素上求值都为`true`时返回真。这样的辅助函数几乎每个容器类型都支持，反复实现它们是一件枯燥重复的事。
+
+巧的是，许多这些辅助函数都能从我们已经实现的`fold`函数机械地衍生出来。相较于为每个新容器手写所有这些函数，我们可以使用一个函子给拥有`fold`函数的容器加上这些功能。
+
+我们创建一个新模块，`Foldable`，它给一个支持`fold`的容器自动添加辅助函数。如你所见，`Foldable`包含一个模块签名S，S定义了需要支持`fold`的签名；还有一个函子`Extend`，允许你扩展任何匹配`Foldable.S`的模块：
+```ocaml
+open Core.Std
+
+module type S = sig
+  type 'a t
+  val fold : 'a t -> init:'acc -> f:('acc -> 'a -> 'acc) -> 'acc
+end
+
+module type Extension = sig
+  type 'a t
+  val iter  : 'a t -> f:('a -> unit) -> unit
+  val length  : 'a t -> int
+  val count  : 'a t -> f:('a -> bool) -> int
+  val for_all : 'a t -> f:('a -> bool) -> bool
+  val exists  : 'a t -> f:('a -> bool) -> bool
+end
+
+(* For extending a Foldable module *)
+module Extend(Arg : S)
+  : (Extension with type 'a t := 'a Arg.t) =
+struct
+  open Arg
+
+  let iter t ~f =
+    fold t ~init:() ~f:(fun () a -> f a)
+
+  let length t =
+    fold t ~init:0  ~f:(fun acc _ -> acc + 1)
+
+  let count t ~f =
+    fold t ~init:0  ~f:(fun count x -> count + if f x then 1 else 0)
+
+  exception Short_circuit
+
+  let for_all c ~f =
+    try iter c ~f:(fun x -> if not (f x) then raise Short_circuit); true
+    with Short_circuit -> false
+
+  let exists c ~f =
+    try iter c ~f:(fun x -> if f x then raise Short_circuit); false
+    with Short_circuit -> true
+end
+```
+现在我们可以将其应用到`Fqueue`上。我们可以创建一个扩展版`Fqueue`的接口：
+```ocaml
+type 'a t
+include (module type of Fqueue) with type 'a t := 'a t
+include Foldable.Extension with type 'a t := 'a t
+```
+为了应用这个函子，我们把`Fqueue`的定义放在一个叫`T`的子模块中，然后在`T`上调用`Foldable.Extend`：
+```ocaml
+include Fqueue
+include Foldable.Extend(Fqueue)
+```
+以这种基本模式，Core自带了一些用于扩展模块的函子，包括：
+- `Container.Make`  
+  和`Foldable.Extend`很类似
+- `Comparable.Make`  
+  添加依赖比较函数的功能，包含对像映射和集合这样的容器的支持。
+- `Hashable.Make`  
+  给包含哈希表、哈希集合和哈希堆等基于哈希的数据结构添加支持
+- `Monad.Make`  
+  用于所谓的单子库，像第七章和第十八章讨论那些。这里，此函子用于提供一组基于`bind`和`return`操作符的辅助函数。
+
+当你想要给你自己的类型添加Core中常见的功能时，函子就派上用场了。
+
+我们只介绍了函子的几种可能应用。函子是组织代码的利器。代价是相对于该语言的其它部分，函子的语法比较重量级，且要高效使用它你需要理解一些技巧，其中最为重要的是共享约束和破坏式替换。
+
+所有这些意味着对于简单的小程序，大量使用函子可能是个错误。但随着你的程序越来越复杂，你需要更有效的模块化架构，函子此时就是一个极有价值的工具。
