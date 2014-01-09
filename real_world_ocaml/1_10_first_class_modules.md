@@ -175,8 +175,45 @@ val bump_list : (module Bumpable with type t = 'a) -> 'a list -> 'a list =
 
 > **更多关于本地抽象类型**
 >
+> 本地抽象类型的一个关键属性就是它们在函数内部被作为抽象类型处理，但在外部看来却是多态的。看下面的例子：
+> ```ocaml
+> # let wrap_in_list (type a) (x : a) = [x];;
+> val wrap_in_list : 'a -> 'a list = <fun>
+> ```
+> 这会编译成功，因为类型`a`以抽象方式使用。但推导出的函数类型却是多态的。
+>
+> 另一方面，如果我们尝试把`a`用作一个具体类型的等价，比如，`int`，那么编译会失败：
+> ```ocaml
+> # let double_int (type a) (x : a) = x + x;;
+> Characters 38-39:
+> Error: This expression has type a but and expression was expected of type int
+> ```
+> 本地抽象类型的一个最常见应用是创建一个新类型，用以构造一个模块。这里有一个例子，就是这样创建一个第一类模块：
+> ```ocaml
+> # module type Comparable = sig
+>     type t
+>     val compare : t -> t -> int
+>   end ;;
+> module type Comparable = sig type t val compare : t -> t -> int end
+> # let create_comparable (type a) compare =
+>     (module struct
+>       type t = a
+>       let compare = compare
+>     end : Comparable with type t = a)
+>   ;;
+> val create_comparable :
+> ('a -> 'a -> int) -> (module Comparable with type t = 'a) = <fun>
+> # create_comparable Int.compare;;
+> - : (module Comparable with type t = int) = <module>
+> # create_comparable Float.compare;;
+> - : (module Comparable with type t = float) = <module>
+> ```
+> 这里，我们事实上是捕捉了一个多态类型并在一个模块中将其导出成具体类型。
+>
+> 这种技术在第一类模块以外也有用。如，我们可以用相同的方法构造一个本地模块传给一个函子。
 
-### Example: A Query-Handing Framework
+### 例：一个查询处理框架
+
 #### Implementing a Query Handler
 #### Dispatching to Multiple Query Handlers
 #### Loading and Unloading Query Handlers
