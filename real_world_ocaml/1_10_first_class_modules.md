@@ -213,9 +213,402 @@ val bump_list : (module Bumpable with type t = 'a) -> 'a list -> 'a list =
 > 这种技术在第一类模块以外也有用。如，我们可以用相同的方法构造一个本地模块传给一个函子。
 
 ### 例：一个查询处理框架
+现在说我们在一个更完整更现实的例子中看一下第一类模块。考虑下面的模块签名，此模块实现了一个响应用户查询的系统。
+```ocaml
+# module type Query_handler = sig
+    (** Configuration for a query handler. Note that this can be
+         converted to and from an s-expression *)
+    type config with sexp
 
-#### Implementing a Query Handler
-#### Dispatching to Multiple Query Handlers
-#### Loading and Unloading Query Handlers
+    (** The name of the query-handling service *)
+    val name : string
 
-### Living Without First-Class Modules
+    (** The state of the query handler *)
+    type t
+
+    (** Creates a new query handler from a config *)
+    val create : config -> t
+
+    (** Evaluate a given query, where both input and output are
+         s-expressions *)
+    val eval : t -> Sexp.t -> Sexp.t Or_error.t
+  end;;
+
+module type Query_handler =
+  sig
+    type config
+    val name : string
+    type t
+    val create : config -> t
+    val eval : t -> Sexp.t -> Sexp.t Or_error.t
+    val config_of_sexp : Sexp.t -> config
+    val sexp_of_config : config -> Sexp.t
+  end
+```
+这里我们用S表达式作为查询和响应格式，也作为查询处理器的配置。S表达式是一种简单、灵活并可读的序列化格式，在Core中很常用。现在，将其看成括号围起的表达式，原子值是字符串就足够了，即，`(this (is an) (s expression))`。
+
+另外，我们使用了`Sexplib`语法扩展，它用`with sexp`声明扩展了OCaml。把`with sexp`附加到一个签名中的类型上，就添加了S表达式转换器，如：
+```ocaml
+# module type M = sig type t with sexp end;;
+module type M =
+  sig type t val t_of_sexp : Sexp.t -> t val sexp_of_t : t -> Sexp.t end
+```
+在模块中，`with sexp`会添加这些函数的实现。因此，我们可以这样写：
+```ocaml
+# type u = { a: int; b: float } with sexp;;
+type u = { a : int; b : float; }
+val u_of_sexp : Sexp.t -> u = <fun>
+val sexp_of_u : u -> Sexp.t = <fun>
+# sexp_of_u {a=3;b=7.};;
+- : Sexp.t = ((a 3) (b 7))
+# u_of_sexp (Sexp.of_string "((a 43) (b 3.4))");;
+- : u = {a = 43; b = 3.4}
+```
+这些在[第17章]()都会详述。
+
+#### 实现一个查询处理器
+说我们看一些满足`Query_handler`接口的查询处理器。第一个例子是一个产生唯一整数ID的处理器。它通过内部保持一个整数计数器工作，每次产生一个新值那会变化。这种情况下查询的输入只是一个无意义的S表达式`()`，或称为`Sexp.unit`：
+```ocaml
+# module Unique = struct
+    type config = int with sexp
+    type t = { mutable next_id: int }
+
+    let name = "unique"
+    let create start_at = { next_id = start_at }
+
+    let eval t sexp =
+      match Or_error.try_with (fun () -> unit_of_sexp sexp) with
+      | Error _ as err -> err
+      | Ok () ->
+        let response = Ok (Int.sexp_of_t t.next_id) in
+        t.next_id <- t.next_id + 1;
+        response
+  end;;
+module Unique :
+  sig
+    type config = int
+    val config_of_sexp : Sexp.t -> config
+    val sexp_of_config : config -> Sexp.t
+    type t = { mutable next_id : config; }
+    val name : string
+    val create : config -> t
+    val eval : t -> Sexp.t -> (Sexp.t, Error.t) Result.t
+  end
+```
+我们可以使用这个模块创建一个`Unique`查询处理器的实例并直接与之交互：
+```ocaml
+# let unique = Unique.create 0;;
+val unique : Unique.t = {Unique.next_id = 0}
+# Unique.eval unique Sexp.unit;;
+- : (Sexp.t, Error.t) Result.t = Ok 0
+# Unique.eval unique Sexp.unit;;
+- : (Sexp.t, Error.t) Result.t = Ok 1
+```
+下面是另一个例子：一个列举目录的查询处理器。这里，`config`是默认目录，被视为相对路径：
+```ocaml
+# module List_dir = struct
+    type config = string with sexp
+    type t = { cwd: string }
+
+    (** [is_abs p] Returns true if [p] is an absolute path *)
+    let is_abs p =
+      String.length p > 0 && p.[0] = '/'
+
+    let name = "ls"
+    let create cwd = { cwd }
+
+    let eval t sexp =
+      match Or_error.try_with (fun () -> string_of_sexp sexp) with
+      | Error _ as err -> err
+      | Ok dir ->
+        let dir =
+          if is_abs dir then dir
+          else Filename.concat t.cwd dir
+        in
+        Ok (Array.sexp_of_t String.sexp_of_t (Sys.readdir dir))
+  end;;
+module List_dir :
+  sig
+    type config = string
+    val config_of_sexp : Sexp.t -> config
+    val sexp_of_config : config -> Sexp.t
+    type t = { cwd : config; }
+    val is_abs : config -> bool
+    val name : config
+    val create : config -> t
+    val eval : t -> Sexp.t -> (Sexp.t, Error.t) Result.t
+  end
+```
+我们可以创建一个此查询处理器的实例并直接与之交互：
+```ocaml
+# let list_dir = List_dir.create "/var";;
+val list_dir : List_dir.t = {List_dir.cwd = "/var"}
+# List_dir.eval list_dir (sexp_of_string ".");;
+- : (Sexp.t, Error.t) Result.t =
+Ok (lib mail cache www spool run log lock opt local backups tmp)
+# List_dir.eval list_dir (sexp_of_string "yp");;
+Exception: (Sys_error "/var/yp: No such file or directory").
+```
+
+#### 调度多个查询处理器
+现在，如果我们要把查询分发给任意一个处理器集合中的一个该怎么办？理想情况下，我们只要把这处理器以像列表这种简单数据结构传入。单用模块和函子这是很难的，但用 第一类模块就相当自然。首先要做的是创建一个签名，把`Query_handler`模块和一个实例化的查询处理器组合地一起：
+```ocaml
+# module type Query_handler_instance = sig
+    module Query_handler : Query_handler
+    val this : Query_handler.t
+  end;;
+module type Query_handler_instance =
+  sig module Query_handler : Query_handler val this : Query_handler.t end
+```
+使用这个签名，我们就可以创建一个第一类模块，封装一个查询实例和此查询上匹配的操作：
+```ocaml
+# let unique_instance =
+    (module struct
+       module Query_handler = Unique
+       let this = Unique.create 0
+     end : Query_handler_instance);;
+val unique_instance : (module Query_handler_instance) = <module>
+```
+这样构建实例有一点冗长，但我们可以之一个函数来消除大部分样板。注意我们再一次用到了本地抽象类型：
+```ocaml
+# let build_instance
+        (type a)
+        (module Q : Query_handler with type config = a)
+        config
+    =
+    (module struct
+      module Query_handler = Q
+      let this = Q.create config
+     end : Query_handler_instance)
+  ;;
+val build_instance :
+  (module Query_handler with type config = 'a) ->
+  'a -> (module Query_handler_instance) = <fun>
+```
+使用`build_instance`，一行就可以构建一个新的实例：
+```ocaml
+# let unique_instance = build_instance (module Unique) 0;;
+val unique_instance : (module Query_handler_instance) = <module>
+# let list_dir_instance = build_instance (module List_dir)  "/var";;
+val list_dir_instance : (module Query_handler_instance) = <module>
+```
+现在我们可以写代码把查询分发到一个查询处理器实例列表了。我们假设查询格式如下：
+```
+(query-name query)
+```
+其中`query-name`是用以确定使用哪个查询处理器的名字，`query`是查询的内容。
+
+我们要做的第一件事是需要一个函数，接收一个处理器列表并个中构建一个分发表：
+```ocaml
+# let build_dispatch_table handlers =
+    let table = String.Table.create () in
+    List.iter handlers
+      ~f:(fun ((module I : Query_handler_instance) as instance) ->
+        Hashtbl.replace table ~key:I.Query_handler.name ~data:instance);
+    table
+  ;;
+val build_dispatch_table :
+  (module Query_handler_instance) list ->
+  (module Query_handler_instance) String.Table.t = <fun>
+```
+现在我们需要一个函数，用分发表的分发到一个处理器：
+```ocaml
+# let dispatch dispatch_table name_and_query =
+    match name_and_query with
+    | Sexp.List [Sexp.Atom name; query] ->
+      begin match Hashtbl.find dispatch_table name with
+      | None ->
+        Or_error.error "Could not find matching handler"
+          name String.sexp_of_t
+      | Some (module I : Query_handler_instance) ->
+        I.Query_handler.eval I.this query
+      end
+    | _ ->
+      Or_error.error_string "malformed query"
+  ;;
+val dispatch :
+  (string, (module Query_handler_instance)) Hashtbl.t ->
+  Sexp.t -> Sexp.t Or_error.t = <fun>
+```
+此函数通过把一个实例解包成模块`I`与之交互，然后使用查询处理器实例（`I.this`）和相关模块（`I.Query_handler`）协作。
+
+模块和值的绑定在许多方面使用联想到面向对象编程语言。一个重要的不同是第一第模块允许你打包比函数或方法更多的东西。如我们所见，你也可以包含类型甚至是模块。这里我们只用到了一小部分，还有额外的功能允许构建更复杂的组件，包含多个相互依赖的类型和值。
+
+对我，让我们回来添加一个命令行接口，以完成一个可运行的例子：
+```ocaml
+# let rec cli dispatch_table =
+    printf ">>> %!";
+    let result =
+      match In_channel.input_line stdin with
+      | None -> `Stop
+      | Some line ->
+        match Or_error.try_with (fun () -> Sexp.of_string line) with
+        | Error e -> `Continue (Error.to_string_hum e)
+        | Ok (Sexp.Atom "quit") -> `Stop
+        | Ok query ->
+          begin match dispatch dispatch_table query with
+          | Error e -> `Continue (Error.to_string_hum e)
+          | Ok s  -> `Continue (Sexp.to_string_hum s)
+          end;
+    in
+    match result with
+    | `Stop -> ()
+    | `Continue msg ->
+      printf "%s\n%!" msg;
+      cli dispatch_table
+  ;;
+val cli : (string, (module Query_handler_instance)) Hashtbl.t -> unit = <fun>
+```
+我们实际上可以从一个独立程序中运行此命令行接口，我们可以把上面的代码放到一个函数中，然后使用下面的命令来启动接口：
+```ocaml
+let () =
+  cli (build_dispatch_table [unique_instance; list_dir_instance])
+```
+下例是此程序的一个会话：
+```bash
+$ ./query_handler.byte 
+>>> (unique ())
+0
+>>> (unique ())
+1
+>>> (ls .)
+(agentx at audit backups db empty folders jabberd lib log mail msgs named netboot pgsql_socket_alt root rpc run rwho spool tmp vm yp)
+>>> (ls vm)
+(sleepimage swapfile0 swapfile1 swapfile2 swapfile3 swapfile4 swapfile5 swapfile6)
+```
+    
+#### 加载和卸载查询处理器
+第一类模块的一个优势就是它们提供了强大的动态性和灵活性。如，修改我们设计来允许运行时加载和卸载查询处理器相当容易。
+
+我们先创建一个查询处理器，其工作就是控制活动查询处理器的集合。此模块叫作`Loader`，其配置是一个已知`Query_handler`模块的列表。下面是基本类型：
+```ocaml
+module Loader = struct
+  type config = (module Query_handler) list sexp_opaque with sexp
+
+  type t = { known  : (module Query_handler)  String.Table.t
+           ; active : (module Query_handler_instance) String.Table.t
+           }
+           
+  let name = "loader"
+```
+注意`Loader.t`有两个表：一个包含已知的查询处理器模块，一个包含活动的查询处理器实例。`Loader.t`负责创建新的实例并将其添加到这个表中，同时也根据用户查询来删除实例。
+
+下面，我们需要一个函数来创建`Loader.t`。这个函数需要一个已知查询处理器模块的列表。注意活动模块表开始是空的：
+```ocaml
+let create known_list =
+  let active = String.Table.create () in
+  let known  = String.Table.create () in
+  List.iter known_list
+    ~f:(fun ((module Q : Query_handler) as q) ->
+      Hashtbl.replace known ~key:Q.name ~data:q);
+  { known; active }
+```
+现在我们写维护活动查询处理器表的函数。我们先从加载实例函数开始。注意它把查询处理器名和S表达式形式的实例化配置作为参数。这些用以创建一个类型为`(module Query_handler_instance)`第一类模块，然后将其添加到活动表中：
+```ocaml
+let load t handler_name config =
+  if Hashtbl.mem t.active handler_name then
+    Or_error.error "Can't re-register an active handler"
+      handler_name String.sexp_of_t
+  else
+    match Hashtbl.find t.known handler_name with
+    | None ->
+      Or_error.error "Unknown handler" handler_name String.sexp_of_t
+    | Some (module Q : Query_handler) ->
+      let instance =
+        (module struct
+          module Query_handler = Q
+          let this = Q.create (Q.config_of_sexp config)
+        end : Query_handler_instance)
+      in
+      Hashtbl.replace t.active ~key:handler_name ~data:instance;
+      Ok Sexp.unit
+```
+因为加密函数会复用来加载一个已经活动的处理器，我们还需要能卸载一个处理器。注意处理器会显示拒绝卸载自身：
+```ocaml
+let unload t handler_name =
+  if not (Hashtbl.mem t.active handler_name) then
+    Or_error.error "Handler not active" handler_name String.sexp_of_t
+  else if handler_name = name then
+Or_error.error_string "It's unwise to unload yourself"
+  else (
+    Hashtbl.remove t.active handler_name;
+    Ok Sexp.unit
+  )
+```
+最后我们需要实现`eval`函数，确定用户的拉查询接口。我们创建一个变体类型来做这件事，使用对此类型生成的S表达式转换器来解析用户查询：
+```ocaml
+type request =
+    | Load of string * Sexp.t
+    | Unload of string
+    | Known_services
+    | Active_services
+  with sexp
+```
+`eval`函数本身很简单，把每种查询分发到合适的函数即可。注意我们用`<:sexp_of<string list>>`来自动生成一个将字符串列表转换成一个S表达式的函数，[第17章](https://github.com/zforget/translation/blob/master/real_world_ocaml/2_17_data_serialization_with_s_expressions.md)会介绍。
+
+此函数结束了`Loader`模块的定义：
+```ocaml
+let eval t sexp =
+  match Or_error.try_with (fun () -> request_of_sexp sexp) with
+  | Error _ as err -> err
+  | Ok resp ->
+    match resp with
+    | Load (name,config) -> load  t name config
+    | Unload name  -> unload t name
+    | Known_services ->
+      Ok (<:sexp_of<string list>> (Hashtbl.keys t.known))
+    | Active_services ->
+      Ok (<:sexp_of<string list>> (Hashtbl.keys t.active))
+end
+```
+最后我们可以把这些都放一起放到命令行接口中。我们先创建一个加载器查询处理器实例，然后将其添加到活动表。然后我们启动命令行接口即可，将活动表传给它：
+```ocaml
+let () =
+  let loader = Loader.create [(module Unique); (module List_dir)] in
+  let loader_instance =
+    (module struct
+      module Query_handler = Loader
+      let this = loader
+    end : Query_handler_instance)
+  in
+  Hashtbl.replace loader.Loader.active
+    ~key:Loader.name ~data:loader_instance;
+  cli loader.Loader.active
+```
+现在构建这个命令行来体验一下：
+```bash
+ $ corebuild query_handler_loader.byte
+ ```
+ 结果和你期望的大致相同，开始时没有可用的查询处理器，但你可以加载和卸载它们。下面是一个运行的例子。如你所见，我们开始时只有`loader`自身是活动的处理器：
+ ```bash
+ $ ./query_handler_loader.byte
+>>> (loader known_services)
+(ls unique)
+>>> (loader active_services)
+(loader)
+ ```
+ 任何使用非活动查询处理器的尝试都会失败：
+ ```bash
+ >>> (ls .)
+Could not find matching handler: ls
+ ```
+但是我们用一个我们自己选择的配置加载`ls`处理器，然后就可以使用了。然后当我们卸载它以后，就又不可用了，又可以用不同的配置加载：
+```bash
+>>> (loader (load ls /var))
+()
+>>> (ls /var)
+(agentx at audit backups db empty folders jabberd lib log mail msgs named netboot pgsql_socket_alt root rpc run rwho spool tmp vm yp)
+>>> (loader (unload ls))
+()
+>>> (ls /var)
+Could not find matching handler: ls
+```
+注意`loader`不能被加载（因为它不在已知处理器列表中），也不能被卸载：
+```bash
+>>> (loader (unload loader))
+It's unwise to unload yourself
+```
+尽管我们这里不会描述细节，使用OCaml的动态链接设施我们更进一步使用这种动态性，动态链接允许你在运行时编译和链接新的代码。这可以使用像`ocaml_plugin`这样的库自动完成，`ocaml_plugin`可以通过OPAM安装，会自动化大量设置动态链接的工作流。
+
+### 不使用第一类模块工作
+
