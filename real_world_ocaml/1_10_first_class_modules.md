@@ -213,7 +213,7 @@ val bump_list : (module Bumpable with type t = 'a) -> 'a list -> 'a list =
 > 这种技术在第一类模块以外也有用。如，我们可以用相同的方法构造一个本地模块传给一个函子。
 
 ### 例：一个查询处理框架
-现在说我们在一个更完整更现实的例子中看一下第一类模块。考虑下面的模块签名，此模块实现了一个响应用户查询的系统。
+现在让我们在一个更完整更现实的例子中看一下第一类模块。考虑下面的模块签名，此模块实现了一个响应用户查询的系统。
 ```ocaml
 # module type Query_handler = sig
     (** Configuration for a query handler. Note that this can be
@@ -267,7 +267,7 @@ val sexp_of_u : u -> Sexp.t = <fun>
 这些在[第17章]()都会详述。
 
 #### 实现一个查询处理器
-说我们看一些满足`Query_handler`接口的查询处理器。第一个例子是一个产生唯一整数ID的处理器。它通过内部保持一个整数计数器工作，每次产生一个新值那会变化。这种情况下查询的输入只是一个无意义的S表达式`()`，或称为`Sexp.unit`：
+让我们看一些满足`Query_handler`接口的查询处理器。第一个例子是一个产生唯一整数ID的处理器。它通过内部保持一个整数计数器工作，计数器每次产生一个新值都会变化。这种情况下查询的输入只是一个无意义的S表达式`()`，或称为`Sexp.unit`：
 ```ocaml
 # module Unique = struct
     type config = int with sexp
@@ -369,7 +369,7 @@ module type Query_handler_instance =
      end : Query_handler_instance);;
 val unique_instance : (module Query_handler_instance) = <module>
 ```
-这样构建实例有一点冗长，但我们可以之一个函数来消除大部分样板。注意我们再一次用到了本地抽象类型：
+这样构建实例有一点冗长，但我们可以写一个函数来消除大部分样板。注意我们再一次用到了本地抽象类型：
 ```ocaml
 # let build_instance
         (type a)
@@ -396,9 +396,9 @@ val list_dir_instance : (module Query_handler_instance) = <module>
 ```
 (query-name query)
 ```
-其中`query-name`是用以确定使用哪个查询处理器的名字，`query`是查询的内容。
+其中`query-name`用以确定要使用的查询处理器的名字，`query`是查询的内容。
 
-我们要做的第一件事是需要一个函数，接收一个处理器列表并个中构建一个分发表：
+我们要做的第一件事是需要一个函数，接收一个处理器列表并从中构建一个分发表：
 ```ocaml
 # let build_dispatch_table handlers =
     let table = String.Table.create () in
@@ -411,7 +411,7 @@ val build_dispatch_table :
   (module Query_handler_instance) list ->
   (module Query_handler_instance) String.Table.t = <fun>
 ```
-现在我们需要一个函数，用分发表的分发到一个处理器：
+现在我们需要一个函数，用分发表把查询分发到一个处理器：
 ```ocaml
 # let dispatch dispatch_table name_and_query =
     match name_and_query with
@@ -432,9 +432,9 @@ val dispatch :
 ```
 此函数通过把一个实例解包成模块`I`与之交互，然后使用查询处理器实例（`I.this`）和相关模块（`I.Query_handler`）协作。
 
-模块和值的绑定在许多方面使用联想到面向对象编程语言。一个重要的不同是第一第模块允许你打包比函数或方法更多的东西。如我们所见，你也可以包含类型甚至是模块。这里我们只用到了一小部分，还有额外的功能允许构建更复杂的组件，包含多个相互依赖的类型和值。
+模块和值的绑定在许多方面都使人联想到面向对象编程语言。一个重要的不同是第一第模块允许你打包比函数或方法更多的东西。如我们所见，你也可以包含类型甚至是模块。这里我们只用到了一小部分，还有额外的功能允许构建更复杂的组件，包含多个相互依赖的类型和值。
 
-对我，让我们回来添加一个命令行接口，以完成一个可运行的例子：
+现在，让我们回来添加一个命令行接口，以完成一个可运行的例子：
 ```ocaml
 # let rec cli dispatch_table =
     printf ">>> %!";
@@ -478,7 +478,7 @@ $ ./query_handler.byte
 ```
     
 #### 加载和卸载查询处理器
-第一类模块的一个优势就是它们提供了强大的动态性和灵活性。如，修改我们设计来允许运行时加载和卸载查询处理器相当容易。
+第一类模块的一个优势就是它们提供了强大的动态性和灵活性。如，修改我们的设计来允许运行时加载和卸载查询处理器相当容易。
 
 我们先创建一个查询处理器，其工作就是控制活动查询处理器的集合。此模块叫作`Loader`，其配置是一个已知`Query_handler`模块的列表。下面是基本类型：
 ```ocaml
@@ -523,7 +523,7 @@ let load t handler_name config =
       Hashtbl.replace t.active ~key:handler_name ~data:instance;
       Ok Sexp.unit
 ```
-因为加密函数会复用来加载一个已经活动的处理器，我们还需要能卸载一个处理器。注意处理器会显示拒绝卸载自身：
+因为加密函数会复用来加载一个已经活动的处理器，我们还需要能卸载一个处理器。注意处理器会显式拒绝卸载自身：
 ```ocaml
 let unload t handler_name =
   if not (Hashtbl.mem t.active handler_name) then
@@ -535,7 +535,7 @@ Or_error.error_string "It's unwise to unload yourself"
     Ok Sexp.unit
   )
 ```
-最后我们需要实现`eval`函数，确定用户的拉查询接口。我们创建一个变体类型来做这件事，使用对此类型生成的S表达式转换器来解析用户查询：
+最后我们需要实现`eval`函数，确定用户的查询接口。我们创建一个变体类型来做这件事，使用对此类型生成的S表达式转换器来解析用户查询：
 ```ocaml
 type request =
     | Load of string * Sexp.t
@@ -592,7 +592,7 @@ let () =
  >>> (ls .)
 Could not find matching handler: ls
  ```
-但是我们用一个我们自己选择的配置加载`ls`处理器，然后就可以使用了。然后当我们卸载它以后，就又不可用了，又可以用不同的配置加载：
+但是我们用一个我们自己选择的配置加载`ls`处理器，然后就可以使用了。然后当我们卸载它以后，就又不可用了，又可以用不同的配置重新加载：
 ```bash
 >>> (loader (load ls /var))
 ()
@@ -608,7 +608,31 @@ Could not find matching handler: ls
 >>> (loader (unload loader))
 It's unwise to unload yourself
 ```
-尽管我们这里不会描述细节，使用OCaml的动态链接设施我们更进一步使用这种动态性，动态链接允许你在运行时编译和链接新的代码。这可以使用像`ocaml_plugin`这样的库自动完成，`ocaml_plugin`可以通过OPAM安装，会自动化大量设置动态链接的工作流。
+尽管我们这里不会描述细节，使用OCaml的动态链接设施我们可以更进一步使用这种动态性，动态链接允许你在运行时编译和链接新的代码。这可以使用像`ocaml_plugin`这样的库自动完成，`ocaml_plugin`可以通过OPAM安装，会自动化大量设置动态链接的工作流。
 
 ### 不使用第一类模块工作
-
+值得一提的是大多数使用第一类模块的设计都可以不使用它们来模拟，只是有不同程度的别扭。例如，我们可以不使用第一类模块重写查询处理器这个例子，使用下面的类型：
+```ocaml
+# type query_handler_instance = { name : string
+                                ; eval : Sexp.t -> Sexp.t Or_error.t
+                                }
+  type query_handler = Sexp.t -> query_handler_instance
+;;
+type query_handler_instance = {
+  name : string;
+  eval : Sexp.t -> Sexp.t Or_error.t;
+}
+type query_handler = Sexp.t -> query_handler_instance
+```
+这里我们的方法是把函数背后的对象类型隐藏到闭包中。因此，我们可以像下面这样把`Unique`处理器添加加到此框架中：
+```ocaml
+# let unique_handler config_sexp =
+    let config = Unique.config_of_sexp config_sexp in
+    let unique = Unique.create config in
+    { name = Unique.name
+    ; eval = (fun config -> Unique.eval unique config)
+    }
+  ;;
+val unique_handler : Sexp.t -> query_handler_instance = <fun>
+```
+对于这种规模的例子，上面的方法完全够用，第一类模块确实不是必须的。但是要隐藏在闭包后的功能动越多，不同类型之间的关系越复杂，上面的方法就越笨拙，就越应该使用第一类模块。
