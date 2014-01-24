@@ -1,6 +1,6 @@
 Google C++ Style Guide 中文版
 原始文档：<http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml>
-基于版本：3.260 
+基于版本：3.274 
 
 # 背景
 C++是Google许多开源项目所使用的主要编程语言。正如每个C++程序员所知，这门语言有许多强大的特性，但是随之而来的是其复杂性，这反过来又使代码更容易引入Bug，难以阅读和维护。
@@ -1328,7 +1328,7 @@ C++11是ISO的C++标准的最新版本。对语言和库都作了重要改动。
 C++11已经成为官方标准，终将会被越来越多的C++编译器支持。它标准化了一些我们已经在使用的通用C++扩展，允许对一些操作速记，并且有一些性能和安全性提升。
 
 ### 缺点：
-C++11实际上比之前的标准要复杂得多（1300页对800页），并且许多开发者都对其不太熟悉。一些特性对代码可读性和可维护性的长期影响尚不得而知。我们不知道相关工具什么时候才能一致地支持C++11那么多特性，特别是在强制使用都版本工具的工程中。
+C++11实际上比之前的标准要复杂得多（1300页对800页），并且许多开发者都对其不太熟悉。一些特性对代码可读性和可维护性的长期影响尚不得而知。我们不知道相关工具什么时候才能一致地支持C++11那么多特性，特别是在强制使用旧版本工具的工程中。
 
 和Boost库一样，一些C++11扩展所鼓励的编程实践也会降低可读性，如去掉了对阅读代码有帮助冗余检查（如类型名），还有鼓励模板元编译。其它复制了现有系统已有的功能的扩展，这可能导致混乱和转换成本。
 ### 结论
@@ -1759,7 +1759,14 @@ bool success = CalculateSomething(interesting_value,
 ## 非ASCII字符
 **非ASCII字符极少需要，用也要是UTF-8编码格式。**
 
-你不应该把用户界面文本硬编码到代码中，即使是英语也不行，所以需要使用非ASCII字符的情况非常之少。但有些特殊情况适合包含此类单词。例如，如果你的代码要解析外文数据文件，硬编码文件中一些非ASCII字符串作为分隔符是合理的。更常见的，单元测试代码（不需要本地化）可能包含非ASCII字符串。在这些情况下你应该使用UTF-8编码，因为除了ASCII编码外，大多数工具都能理解UTF-8编码。Hex编码也可以，在有助于可读性的情况下尤为鼓励，如，“\xFE\xBB\xBF”是一个零宽度、无间断的UNICODE空白字符，如果在源代码中直接使用UTF-8就是不可见的。
+你不应该把用户界面文本硬编码到代码中，即使是英语也不行，所以需要使用非ASCII字符的情况非常之少。但有些特殊情况适合包含此类单词。例如，如果你的代码要解析外文数据文件，硬编码文件中一些非ASCII字符串作为分隔符是合理的。更常见的，单元测试代码（不需要本地化）可能包含非ASCII字符串。在这些情况下你应该使用UTF-8编码，因为除了ASCII编码外，大多数工具都能理解UTF-8编码。
+
+Hex编码也可以，在有助于可读性的情况下尤为鼓励，如，`"\xFE\xBB\xBF"`，或更简单的，`u8"\uFEFF"`是一个零宽度、无间断的UNICODE空白字符，如果在源代码中直接使用UTF-8就是不可见的。
+
+使用`u8`来确保一个包含`\uXXXX`转义序列的字符串字面值会以UTF-8编码。不要在包含UTF-8编码的非ASCII字符的字符串中使用它，因为如果编译器不把源文件解释成UTF-8，这会产生错误的输出。
+>> 不太明白
+
+不要使用C++11中的`char16_t`和`char32_t`类型，因为它们 是用于非UTF-8文本的。同样的原因，你也不应该使用`wchar_t`（除非你在写和Windows API交互的代码，其中大量使用`wchar_t`）。
 
 ## 空格和Tab
 **只使用空格，每次缩进2个空格。**
@@ -1798,7 +1805,8 @@ ReturnType LongClassName::ReallyReallyReallyLongFunctionName(
 }
 ```
 需要指明几点：
-- 返回值总是和函数名在同一行上。
+- 如果不能把函数返回类型和函数名放在一行上，可以在中间加换行。
+- 如果在函数的返回类型之后换行，就不要缩进了。
 - 左圆括号也总是和函数名在同一行上。
 - 左括号和函数名之间没有空格。
 - 括号和参数之间没有空格。
@@ -1852,4 +1860,489 @@ bool retval = DoSomething(averyveryveryverylongargument1,
 ```cpp
 bool retval = DoSomething(argument1,
                           argument2,
-      
+                          argument3,
+                          argument4);
+```
+参数也可以都放在函数名下面的行上，一行一个：
+
+```cpp
+if (...) {
+  ...
+  ...
+  if (...) {
+    DoSomething(
+        argument1,  // 4 space indent
+        argument2,
+        argument3,
+        argument4);
+  }
+```
+特别是当函数签名太长放在同一行时会超过一行的最大[长度](#行长度)，更要如此。
+
+## 大括号初始化列表
+**和函数调用一样格式化大括号初始化列表。**
+
+如果列表跟在一个名字后（如一个类型或一个变量名），就把`{}`看作函数调用中的小括号一样格式化。如果没有名字，假想一个0长度的名字。
+
+尽量把所有的东西都放到一行上。如果不能放到一行上，左大括号应该是其所在行的最后一个字符，且右大括号应该是其所在行的第一个字符。
+
+```cpp
+// 单行大括号列表示例。
+return {foo, bar};
+functioncall({foo, bar});
+pair<int, int> p{foo, bar};
+
+// 需要换行时。
+SomeFunction(
+    {"assume a zero-length name before {"},
+    some_other_function_parameter);
+SomeType variable{
+    some, other, values,
+    {"assume a zero-length name before {"},
+    SomeOtherType{
+        "Very long string requiring the surrounding breaks.",
+        some, other values},
+    SomeOtherType{"Slightly shorter string",
+                  some, other, values}};
+SomeType variable{
+    "This is too long to fit all in one line"};
+MyType m = {  // Here, you could also break before {.
+    superlongvariablename1,
+    superlongvariablename2,
+    {short, interior, list},
+    {interiorwrappinglist,
+     interiorwrappinglist2}};
+```
+
+## 条件语句
+**尽量括号中不要有空格。`else`关键字另起一行。**
+
+一个基本的条件语句有两种可接受的形式。一种在小括号和条件之间有空格，另一种没有。
+
+最常用的形式是没有空格的。另一种也可以，但是要保持一致。如果你在修改一个文件，使用已有的格式。对于新代码，使用同一目录或同一工程中的形式。如果不确定并且没有个人倾向，就不要用空格。
+
+```cpp
+if (condition) {  // 小括号里没有空格
+  ...  // 2个空格缩进
+} else if (...) {  // 和右大括号在同一行的else语句。
+  ...
+} else {
+  ...
+}
+```
+如果你选择在小括号中添加空格：
+
+```cpp
+if ( condition ) {  // 小括号中有空格 - 少用
+  ...  // 2个空格缩进
+} else {  // 和右大括号在同一行的else语句。
+  ...
+}
+```
+注意无论何种形式，你都必须在`if`和左小括号之间加空格。如果有大括号，右小括号和左大括号之间也要有空格。
+
+```cpp
+if(condition)     // 不好 - if后面缺了空格。
+if (condition){   // 不好 - {后面缺了空格。
+if(condition){    // 更不好
+```
+
+```cpp
+if (condition) {  // 好 - if后和{前都有合适的空格。
+```
+如果可以加强可读性，短的条件语句可以放在一行。只有在代码行非常精简并且没有使用`else`语句时才能这样。
+
+```cpp
+if (x == kFoo) return new Foo();
+if (x == kBar) return new Bar();
+```
+当`if`语句有`else`子句时，这是不允许的：
+
+```cpp
+// 不允许 - IF语句在有ELSE时还放在同一行上
+if (x) DoThis();
+else DoThat();
+```
+通常，单行语句不需要花括号，但是如果你喜欢也可以使用；有复杂条件或语句的条件或循环语句使用花括号更易读。一些工程要求`if`必必须要有对应的大括号。
+
+```cpp
+if (condition)
+  DoSomething();  // 2个空格缩进。
+
+if (condition) {
+  DoSomething();  // 2个空格缩进。
+}
+```
+然而，如果`if-else`语句的某一部分使用了花括号，其它的部分也必须要使用：
+
+```cpp
+// 不允许 - IF使用了花括号而ELSE没有
+if (condition) {
+  foo;
+} else
+  bar;
+
+// 不允许 - ELSE使用了花括号而IF没有
+if (condition)
+  foo;
+else {
+  bar;
+}
+```
+
+```cpp
+// 因为一部分使用了花括号，所以IF和ELSE都需要使用
+if (condition) {
+  foo;
+} else {
+  bar;
+}
+```
+
+## 循环和Switch语句
+**`switch`语句可以使用大括号分块。要注释`case`之间重要的失败。空循环体应该用`{}`或`continue`。**
+
+`switch`语句中的`case`块可以使用也可以不使用花括号，这取决于你的喜好。如果要使用花括号，需要像下面的示例那样放置。
+
+如果不是以枚举值为条件，`switch`语句应该有一个`default`匹配（如果使用枚举值，对没有处理的值编译器会有警告）。如果`default`匹配永远都不应该发生，简单使用一个`assert`即可：
+
+```cpp
+switch (var) {
+  case 0: {  // 2个空格缩进
+    ...      // 4个空格缩进
+    break;
+  }
+  case 1: {
+    ...
+    break;
+  }
+  default: {
+    assert(false);
+  }
+}
+```
+空循环体应该用`{}`或`continue`，而不能只一个单独的分号。
+
+```cpp
+while (condition) {
+  // 重复测试直到返回fasle。
+}
+for (int i = 0; i < kSomeNumber; ++i) {}  // 好 - 空循环体。
+while (condition) continue;  // 好 - continue表明无逻辑。
+```
+
+```cpp
+while (condition);  // 不好 - 看起来像do/while循环的一部分。
+```
+## 指针和引用表达式
+**点和箭头周围都不要有空格。指针操作符后面也不要有空格。**
+
+下面都是正确格式的指针和引用示例：
+
+```cpp
+x = *p;
+p = &x;
+x = r.y;
+x = r->y;
+```
+注意：
+- 访问成员时的点号和箭头周围都没有空格。
+- 指针操作符`*`或`&`后面没有空格。
+
+当声明指针变量或参数时，你让星号靠近类型或靠近变量名都可以：
+
+```cpp
+// 下面这样可以，星号前面加空格。
+char *c;
+const string &str;
+
+// 下面这样也可，星号后面加空格。
+char* c;    // 但是要记住多个变量的时候："char* c, *d, *e, ...;"!
+const string& str;
+```
+
+```cpp
+char * c;  // 不好 - * 前后都有空格
+const string & str;  // 不好 - &前后都有空格
+```
+在一个文件中使用的形式要一致，所以修改文件时，要使用文件中已用的风格。
+
+## 布尔表达式
+**当你的布尔表达式超过[标准行长度](#行长度)时，如何换行要保持一致。**
+ 
+下面的例子中，逻辑与操作符总是在行尾：
+
+```cpp
+if (this_one_thing > this_other_thing &&
+    a_third_thing == a_fourth_thing &&
+    yet_another && last_one) {
+  ...
+}
+```
+注意在这个例子中，两个逻辑与操作符`&&`都在行尾。这在Google的代码是很常用，尽管把操作符放在行首的断行方式也是允许的。放心大胆地合理使用小括号，因为如果使用得当它们会极大增加可读性。同时也要注意，总是使用符号操作符，如`&&`和`~`，而不要使用文字操作符，如`and`和`cmpl`。
+
+## 返回值
+**不要徒劳地用小括号包围起`return`表达式。**
+
+只有当你在`x = expr`中也要使用括号时，才需要在`return expr`是使用小括号。
+
+```cpp
+return result;                  // 简单情况不用括号。
+return (some_long_condition &&  // 括号使用正确，增加了复杂表达式的可读性
+        another_condition);  
+```
+
+```cpp
+return (value);                // 不好！ 不是var = (value)的形式；
+return(result);                // 不好！ return不是函数！
+```
+
+## 变量和数组初始化
+**用`=`，`()`或`{}`均可。**
+
+你可以在`=`，`()`和`{}`之间选择，下面都是正确的：
+
+```cpp
+int x = 3;
+int x(3);
+int x{3};
+string name = "Some Name";
+string name("Some Name");
+string name{"Some Name"};
+```
+在有接收`initializer_list`的构造函数的类型上使用`{}`要小必，`{}`语法会尽可能优先选择`initializer_list`构造函数。要使用其它构造函数，应使用`()`。
+
+```cpp
+vector<int> v(100, 1);  // A vector of 100 1s.
+vector<int> v{100, 1};  // A vector of 100, 1.
+```
+大括号形式也可以阻止整数类型窄化转型(narrowing conversion)，这可以防止一些编程错误。
+
+```cpp
+int pi(3.14);  // OK -- pi == 3.
+int pi{3.14};  // 编译器错误： 窄化转型
+```
+
+## 预处理指令
+**井号开头的预处理指令应该在行首。**
+
+即使预处理指令在缩进的代码段中，也要从行首开始。
+
+```cpp
+// 好 - 指令在行首
+  if (lopsided_score) {
+#if DISASTER_PENDING      // 正确 -- 从行首开始
+    DropEverything();
+# if NOTIFY               // 可以但不要求#后有空格
+    NotifyClient();
+# endif
+#endif
+    BackToNormal();
+  }
+```
+
+```cpp
+// 不好 - 缩进指令
+  if (lopsided_score) {
+    #if DISASTER_PENDING  // 错误！ “#if”应该在行首
+    DropEverything();
+    #endif                // 错误！不要缩进“#endif”
+    BackToNormal();
+  }
+```
+
+## 类格式
+**代码段顺序为`public`，`protected`和`private`，各缩进一个空格。**
+
+类声明的基本形式（不包含注释，参见[类注释](#类注释)相关讨论）是：
+
+```cpp
+class MyClass : public OtherClass {
+ public:      // 注意一个空格缩进！
+  MyClass();  // 普通的2空格缩进。
+  explicit MyClass(int var);
+  ~MyClass() {}
+
+  void SomeFunction();
+  void SomeFunctionThatDoesNothing() {
+  }
+
+  void set_some_var(int var) { some_var_ = var; }
+  int some_var() const { return some_var_; }
+
+ private:
+  bool SomeInternalFunction();
+
+  int some_var_;
+  int some_other_var_;
+  DISALLOW_COPY_AND_ASSIGN(MyClass);
+};
+```
+注意事项：
+- 任何基类名都应该和子类在同一行上，但受限于80列限制。
+- `public:`、`protected:`和`private:`关键字应缩进一个空格。
+- 上面的关键字，除了第一个出现的，都应该前面加一空行。这条规则在较小的类中是可选的。
+- 上面的关键字后面不要留空行。
+- 先是`public`段，接着是`protected`段，最后是`private`段。
+- 每一段内部的声明顺序参见[声明顺序](#声明顺序])一节。
+
+## 构造函数初始化列表
+**构造函数初始化列表可以在同一行上，也可以分行，后面的行都缩进4个空格。**
+
+初始化列表有两种可接受的形式：
+
+```cpp
+// 可以放在同一行上：
+MyClass::MyClass(int var) : some_var_(var), some_other_var_(var + 1) {}
+```
+或
+
+```cpp
+// 需要多行，缩进4个空格，算上第一行的冒号
+MyClass::MyClass(int var)
+    : some_var_(var),             // 4空格缩进
+      some_other_var_(var + 1) {  // 和上一行对齐
+  ...
+  DoSomething();
+  ...
+}
+```
+## 命名空间格式化
+**命名空间内容不缩进。**
+
+命名空间不增加缩进层次。如:
+
+```cpp
+namespace {
+
+void foo() {  // 正确。命名空间里不需要额外的缩进。
+  ...
+}
+
+}  // namespace
+```
+命名空间不需要缩进：
+
+```cpp
+namespace {
+
+  // 错误。不应该有缩进。
+  void foo() {
+    ...
+  }
+
+}  // namespace
+```
+当声明了嵌套命名空间时，每个一行：
+
+```cpp
+namespace foo {
+namespace bar {
+```
+## 水平空白
+**水平空白取决于位置。不要在行尾添加空白。**
+
+### 普通
+
+```cpp
+void f(bool b) {  // 左大括号前面总需要空格。
+  ...
+int i = 0;  // 分号前面通常没有空格。
+int x[] = { 0 };  // 大括号初始化列表内部的空格是可选的。
+int x[] = {0};    // 但如果要用，就两边都用！
+// 继承和初始化列表中的冒号周围要有空格。
+class Foo : public Bar {
+ public:
+  // 对于内联函数实现，在大括号和实现代码之间加空格。
+  Foo(int b) : Bar(), baz_(b) {}  // 空的大括号内不需要空格。
+  void Reset() { baz_ = 0; }  // 用空格分隔大括号和实现代码。
+  ...
+```
+行尾添加空格和给其它编辑代码的人造成额外的负担，当他们合并时，会删除已存在的空白。所以，不要引入行尾空白。编辑时删除行尾的空白，或通过单独的清理操作删除（当然要在没有其它人正在使用此文件时）。
+### 循环和条件语句
+
+```cpp
+if (b) {          // 条件和循环中关键字后面有空格。
+} else {          // else周围有空格
+}
+while (test) {}   // 小括号内通常没有空格。
+switch (i) {
+for (int i = 0; i < 5; ++i) {
+switch ( i ) {    // 循环和条件的小括号中可以有空格，但不常用，且要自己保持一致。
+if ( test ) {
+for ( int i = 0; i < 5; ++i ) {
+for ( ; i < 5 ; ++i) {  // for循环中，分号之后一定要有空格，前面也可以有
+  ...
+for (auto x : counts) {  // 基于范围的for循环冒号前后总需要空格
+  ...
+}
+switch (i) {
+  case 1:         // switch中case子句前的冒号不需要空格。
+    ...
+  case 2: break;  // 如果冒号后有代码，就需要加空格。
+```
+### 操作符
+
+```cpp
+x = 0;              // 赋值操作符周围需要空格。
+x = -5;             // 一元操作符和其参数之间不需要空格。
+++x;
+if (x && !y)
+  ...
+v = w * x + y / z;  // 二元操作符周围通常都有空格，
+v = w*x + y/z;      // 但删除因子周围的空格也可以。
+v = w * (x + z);    // 小括号内不需要空格。
+```
+### 模板和类型转换
+
+```cpp
+vector<string> x;           // 尖括号内部（<和>），<之前或>(之间不需要空格。
+y = static_cast<char*>(x);
+vector<char *> x;           // 类型和指针符号间可以有空格，但要保持一致。
+set<list<string>> x;        // C++11代码中允许。
+set<list<string> > x;       // C++03要求> >之间有一空格。
+set< list<string> > x;      // 你也可以在< <间使用空格来保护对称性。
+```
+## 垂直空白
+**尽可能少用垂直空白。**
+
+这更像是原则面不是规则：不要随便使用空行。特别是在函数之间不要添加起过一两个空行，函数开始不要有空行，也不要以空行结束，并且在函数体中使用空行也要节制。
+
+基本原则是：一屏能显示的代码越多越好，这就越容易跟踪和理解程序的控制流。当然，过于密集和过于松散的代码可读性同样不好，这你要自己判断。但是，通常都是垂直空白越少越好。
+
+一些经验法则可以帮助确定何时空行是有用的：
+- 函数内头尾的空行对可读性几乎没有帮助。
+- `if-else`代码链中的空行有助于可读性。
+
+# 规则特例
+上面的编码约定都是强制性的。但是和所有好的规则一样，有时候也会有例外，我们会在这里讨论这样的情况。
+
+## 现有的不合规范代码
+**处理不符合本指南规则的代码时，你可以变通一下。**
+
+如果你发现你正在修改的代码使用的规则不来自本指南，那么可以有一些变通以和原代码中的风格保持一致。如果你不知道怎么做，就去问原作者或现在对代码负责的人。记住，一致性也包含本地一致性。
+
+## Windows代码
+**Windows程序员已经有了一组编码约定，主要演变自Windows头文件和其它微软代码。我们希望任何人都能轻松看懂我们的代码，所以我们对在任何平台上写C++的人有单独的一组规则。**
+
+有必要重申几点，如果你习惯Windows风格，可能忘记的规则：
+- 不要使用匈牙利命名法（如把一个整数命名为`iNum`）。使用Google的命名约定，包括源代码文件应使用.cc扩展名。
+- Windows定义了许多原生类型的同义词，如`DWORD`，`HANDLE`等。在调用Windows API函数时使用这些类型是可接受的，并且是被鼓励的。即使如此，也要尽可以接近原生的C++类型。如，使用`const TCHAR *`来代替``LPCTSTR`。
+- 使用微软的Visual C++编译时，把编译器警告级别设为3或更高，并把所有警告当成错误。
+- 不要使用`#pragma once`；应该使用标准的Google头文件保护，其中的路径应该是相对于工程顶层目录的相对的路径。
+- 事实上，任何非标准扩展都不要使用，像`#pragma`和`__declspec`，除非你确实非用不可。使用`__declspec(dllimport)`和`__declspec(dllexport)`是允许的；然而，你必需通过`DLLIMPORT`和`DLLEXPORT`这样宏来使用它们，以使其它人分享这些代码时可以轻易禁用这些扩展。
+
+不过，我们还是有几条规则在Windows上偶尔会被打破：
+- 通常我们都禁止使用多重实现继承；然而，在使用COM和一些ATL/WTL类时，这却是必须的。你可以使用多重实现继承来实现COM或ATL/WTL类和接口。
+- 尽管你不应该在你自己的代码中使用异常，但异常在ATL和一些STL实现（包括Visual C++中带的那份）中却被广泛使用。使用ATL时，你应该定义`_ATL_NO_EXCEPTIONS`宏来禁用异常。你也要调查一下你的STL版本能否也禁用异常，如果不能，在编译器中打开异常也没问题。（注意这只是为了编译STL。你还是不应该用异常处理你自己的代码。）
+- 使用预编译头文件的通常方式是在每个源文件的头部都包含一个头文件，文件名一般是StdAfx.h或precompile.h。为了使你的代码更容易和其它工程分享，避免显式包含这个文件（除了在precopile.cc中）， 应该使用/FI编译选项来自动包含它。
+- 资源头文件，通常名为resource.h并且只包含一些宏，不需要遵守本指南的风格。
+
+# 结束语
+运用常识，并 **_保持一致性_**。
+
+如果你正在写代码，停几分钟，看看你周围的代码并确定其风格。如果它们在`if`语句周围使用空格，你也要这么做。如果它们的注释用星号围成的盒子包围，你也要如此。
+
+使用风格指南的核心是使用通用的词汇来让人们可以准确知道你在说什么，而不是聚焦于如何表达上。我们列出公共的风格规则就是要让人知道这些词汇。但本地风格也很重要。如果你向一个文件中添加的代码和周围的代码很不搭，这种中断会打乱读者的节奏，要尽量避免。
+
+好了，关于代码风格已经写得够多了；代码本身要有趣得多。尽情享受吧！
