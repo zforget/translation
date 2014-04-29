@@ -1070,7 +1070,7 @@ for (unsigned int i = foo.Length()-1; i >= 0; --i) ...
 **代码应该是64位和32位都支持的。要时刻考虑到打印，比较和结构体对齐等问题。**
 - `printf()`的有些指示符不能在32位和64位之间很好的移植。C99定义了一些可移植的指示符。 不幸的是MSVC7.1支持得不全，且标准本身也有所遗漏，所以我们有时不得不定义自己的丑陋版本（按标准头文件inttypes.h的风格）。
 
- ```cpp
+```cpp
  // size_t的printf的宏，按inttypes.h风格
  #ifdef _LP64
  #define __PRIS_PREFIX "z"
@@ -1087,24 +1087,26 @@ for (unsigned int i = foo.Length()-1; i >= 0; --i) ...
  #define PRIuS __PRIS_PREFIX "u"
  #define PRIXS __PRIS_PREFIX "X"
  #define PRIoS __PRIS_PREFIX "o"
- ```
+```
 
- |类型                   | 不要使用        |使用                   |备注        |
+|类型                  | 不要使用      |使用                |备注      |
 |:-------------------:|:-----------:|:------------------:|:-------:|
- |`void *`(或任何指针类型)|%1x          |%p                  |         |
- |int64_t              |%qd,%lld     |%"PRId64"           |         |
- |uint64_t             |%qu,%llu,%llx|%"PRIu64", %"PRIx64"|         |
- |size_t               |%u           |%"PRIuS", %"PRIxS"  |C99中是%zu| 
- |ptrdiff_t            |%d           |%"PRIdS"            |C99中是%td|
+|`void *`(或任何指针类型)|%1x          |%p                  |         |
+|int64_t              |%qd,%lld     |%"PRId64"           |         |
+|uint64_t             |%qu,%llu,%llx|%"PRIu64", %"PRIx64"|         |
+|size_t               |%u           |%"PRIuS", %"PRIxS"  |C99中是%zu| 
+|ptrdiff_t            |%d           |%"PRIdS"            |C99中是%td|
+
 注意`PRI*`这些宏展成后会由编译器拼接成独立字符串。因此如果你使用非常量的格式化字符串，应该插入值而非宏名。仍然可以包含长度指示符，如使用`PRI*`宏时在`%`后面。综上所述，举个例子，`printf("x=%30"PRIuS"\n",x)`在32位Linux上会展开成`printf(x=%30" "u" "\n", x)`，编译器看来就是`printf("x = %30u\n",x)`。
 - 记住`sizeof(void *)`不等于`sizeof(int)`。如果需要和指针一样大小的整数，需要使用`intptr_t`。
 - 你要小心结构体对齐，特别是对那些需要保存在磁盘上的结构体。在64位系统上，任何含有`int64_t`或`uint64_t`数据成员的类或结构体都会以8字节对齐。如果你需要32位代码和64位代码在磁盘上共享它，就必须要确保在两种架构上以一致的方式打包。大部分编译器都提供了改变结构体对齐方式的方法。gcc可以使用`__attribute__((packed))`，MSVC则提供了`#pragma pack()`和`__declspec(align())`。
 - 创建64位常量时要使用`LL`或`ULL`后缀。如：
 
- ```cpp
+```cpp
  int64_t my_value = 0x123456789LL;
  uint64_t my_mask = 3ULL << 48;
- ```
+```
+ 
 - 如果确实需要在32位和64位使用不同的代码，使用`#ifdef _LP64`来区分。（但是应尽量避免这样使用，应保持代码修改的局部化。）
 
 ## 预处理宏

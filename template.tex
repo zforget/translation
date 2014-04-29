@@ -1,5 +1,5 @@
-\documentclass[$if(fontsize)$$fontsize$,$endif$$if(lang)$$lang$,$endif$$if(papersize)$$papersize$,$endif$]{$documentclass$}
-\usepackage{geometry} 		% 設定邊界
+\documentclass[$if(fontsize)$$fontsize$,$endif$$if(lang)$$lang$,$endif$$if(papersize)$$papersize$,$endif$$for(classoption)$$classoption$$sep$,$endfor$]{$documentclass$}
+\usepackage{geometry} 		% 设定边界
 \geometry{
   top=1in,
   inner=1in,
@@ -8,6 +8,7 @@
   headheight=3ex,
   headsep=2ex
 }
+
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{amssymb,amsmath}
@@ -21,7 +22,13 @@ $if(euro)$
   \usepackage{eurosym}
 $endif$
 \else % if luatex or xelatex
-  \usepackage{fontspec} 	% 允許設定字體
+  \ifxetex
+    \usepackage{mathspec}
+    \usepackage{xltxtra,xunicode}
+  \else
+    \usepackage{fontspec}
+  \fi
+  
   \usepackage{xeCJK} 		% 分開設置中英文字型
   \setCJKmainfont{宋体} 	% 設定中文字型
   \setmainfont{Georgia} 	% 設定英文字型
@@ -31,10 +38,7 @@ $endif$
   \XeTeXlinebreaklocale "zh" 	% 針對中文自動換行
   \XeTeXlinebreakskip = 0pt plus 1pt % 字與字之間加入0pt至1pt的間距，確保左右對整齊
   \parindent 0em 		% 段落縮進
-  \setlength{\parskip}{20pt} 	% 段落之間的距離
-  \ifxetex
-    \usepackage{xltxtra,xunicode}
-  \fi
+  %\setlength{\parskip}{20pt} 	% 段落之間的距離
   \defaultfontfeatures{Mapping=tex-text,Scale=MatchLowercase}
   \newcommand{\euro}{€}
 $if(mainfont)$
@@ -44,10 +48,10 @@ $if(sansfont)$
     \setsansfont{$sansfont$}
 $endif$
 $if(monofont)$
-    \setmonofont{$monofont$}
+    \setmonofont[Mapping=tex-ansi]{$monofont$}
 $endif$
 $if(mathfont)$
-    \setmathfont{$mathfont$}
+    \setmathfont(Digits,Latin,Greek){$mathfont$}
 $endif$
 \fi
 % use microtype if available
@@ -57,7 +61,7 @@ $if(geometry)$
 $endif$
 $if(natbib)$
 \usepackage{natbib}
-\bibliographystyle{plainnat}
+\bibliographystyle{$if(biblio-style)$$biblio-style$$else$plainnat$endif$}
 $endif$
 $if(biblatex)$
 \usepackage{biblatex}
@@ -82,15 +86,24 @@ $if(tables)$
 $endif$
 $if(graphics)$
 \usepackage{graphicx}
-% We will generate all images so they have a width \maxwidth. This means
-% that they will get their normal width if they fit onto the page, but
+% Redefine \includegraphics so that, unless explicit options are
+% given, the image width will not exceed the width of the page.
+% Images get their normal width if they fit onto the page, but
 % are scaled down if they would overflow the margins.
 \makeatletter
-\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth
-\else\Gin@nat@width\fi}
+\def\ScaleIfNeeded{%
+  \ifdim\Gin@nat@width>\linewidth
+    \linewidth
+  \else
+    \Gin@nat@width
+  \fi
+}
 \makeatother
 \let\Oldincludegraphics\includegraphics
-\renewcommand{\includegraphics}[1]{\Oldincludegraphics[width=\maxwidth]{#1}}
+{%
+ \catcode`\@=11\relax%
+ \gdef\includegraphics{\@ifnextchar[{\Oldincludegraphics}{\Oldincludegraphics[width=\ScaleIfNeeded]}}%
+}%
 $endif$
 \ifxetex
   \usepackage[setpagesize=false, % page size defined by xetex
@@ -101,9 +114,11 @@ $endif$
 \fi
 \hypersetup{breaklinks=true,
             bookmarks=true,
+			bookmarksnumbered=true,
             pdfauthor={$author-meta$},
             pdftitle={$title-meta$},
             colorlinks=true,
+            citecolor=$if(citecolor)$$citecolor$$else$blue$endif$,
             urlcolor=$if(urlcolor)$$urlcolor$$else$blue$endif$,
             linkcolor=$if(linkcolor)$$linkcolor$$else$magenta$endif$,
             pdfborder={0 0 0}}
@@ -118,19 +133,11 @@ $if(strikeout)$
 \pdfstringdefDisableCommands{\renewcommand{\sout}{}}
 $endif$
 \setlength{\parindent}{0pt}
-%\setlength{\parskip}{6pt plus 2pt minus 1pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
 \setlength{\emergencystretch}{3em}  % prevent overfull lines
-
-\title{\huge 在OSX平台上的XeLaTeX中文測試} % 設置標題，使用巨大字體
-\author{FoolEgg.com} 		% 設置作者
-\date{February 2013} 		% 設置日期
-\usepackage{titling}
-\setlength{\droptitle}{-8em} 	% 將標題移動至頁面的上面
-
 \usepackage{fancyhdr}
 \usepackage{lastpage}
 \pagestyle{fancyplain}
-
 $if(numbersections)$
 \setcounter{secnumdepth}{5}
 $else$
@@ -147,19 +154,27 @@ $if(lang)$
   \usepackage[$lang$]{babel}
 \fi
 $endif$
-$for(header-includes)$
-$header-includes$
-$endfor$
 
 $if(title)$
 \title{$title$}
 $endif$
+$if(subtitle)$
+\subtitle{$subtitle$}
+$endif$
 \author{$for(author)$$author$$sep$ \and $endfor$}
 \date{$date$}
+$for(header-includes)$
+$header-includes$
+$endfor$
 
 \begin{document}
 $if(title)$
 \maketitle
+$endif$
+$if(abstract)$
+\begin{abstract}
+$abstract$
+\end{abstract}
 $endif$
 
 $for(include-before)$
@@ -171,7 +186,6 @@ $if(toc)$
 \hypersetup{linkcolor=black}
 \setcounter{tocdepth}{$toc-depth$}
 \tableofcontents
-\newpage
 }
 $endif$
 $body$
@@ -198,4 +212,3 @@ $include-after$
 
 $endfor$
 \end{document}
-
