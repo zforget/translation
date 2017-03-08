@@ -2,7 +2,7 @@ source : <https://realworldocaml.org/>
 
 # 序言
 
-## 为什么要选OCaml？
+## 为什么要选 OCaml？
 你使用的编程语言会影响你写的代码。它们会影响你代码的可靠性、安全性和性能，同时也影响它阅读、重构和扩展的难度。你所熟知的语言也会改变你的思维方式，影响你设计软件甚至是使用软件的方式。
 
 我们写这本书是因为我们相信编程语言的重要性，并且 OCaml 是一种尤其值得学习的语言。我们三个在学术和职业生涯中已经使用 OCaml 超过 15 年了，并将其视为构建复杂软件系统的秘密武器。本书的目标就是提供一个在现实世界中高效使用 OCaml 所需求知识的清晰指南，以让更多读者获得这种秘密武器。
@@ -79,9 +79,7 @@ Core 是一个全面高效的标准库，但除此之外还有许多 OCaml 软�
 
 本书不是参考手册。我们的目标是教你这门语言、库、工具和技术来使你成为更高效的 OCaml 程序员。但是不能替代 API 文档或 OCaml 手册和 man 页。书中提及的库和工具的文档你都可以[在线](https://realworldocaml.org/doc)获得。
 
-### Code Examples
-All of the code examples in this book are available freely online under a public-domain- like license. You are most welcome to copy and use any of the snippets as you see fit in your own code, without any attribution or other restrictions on their use.The code repository is available online at https://github.com/realworldocaml/examples. Every code snippet in the book has a clickable header that tells you the filename in that repository to find the source code, shell script, or ancillary data file that the snippet was sourced from.If you feel your use of code examples falls outside fair use or the permission given above, feel free to contact us at permissions@oreilly.com.
-
+### 代码示例
 本书所有的示例代码都可以免费在线获得，许可近似于完全公开，我们欢迎你拷贝合适的代码片到你的代码中，没有任何归属声明或其它限制。
 
 在线代码库地址是：<https://github.com/realworldocaml/examples>。书中每个代码片都有一个可以点击的头来说明源代码、shell 脚本或辅助数据文件的在代码库中的文件名。
