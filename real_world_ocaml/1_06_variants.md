@@ -1,9 +1,10 @@
 ## 第六章 变体
 >> Variants
 
-变体类型是OCaml最有用的特性之一，也是最不寻常的特性之一。变体使你可以表达可能多种不同形态的数据，每种形式都用一个显式的标签标注。我们将会看到，结合模式匹配，变体给了你一种强大的方式来表达复杂数据以及组织在其上的案例分析。
+变体类型是 OCaml 最有用的特性之一，也是最不寻常的特性之一。变体使你可以表达可能多种不同形态的数据，每种形式都用一个显式的标签标注。我们将会看到，结合模式匹配，变体给了你一种强大的方式来表达复杂数据以及组织在其上的实例分析。
 
 变体类型声明的基本语法如下所示：
+
 ```ocaml
 type <variant> =
   | <Tag> [ of <type> [* <type>]... ]
@@ -15,6 +16,7 @@ type <variant> =
 每一行实际上是表示变体的一个实例。每一个实例都有一个相关的标签，也可能有一系列可选的字段，每一个字段都有指定的类型。
 
 让我们以一个具体的例子来说明变量的重要性。几乎所有的终端都支持一组基本颜色，我们可以使用变体表示它们。每种颜色声明成一个简单标签，使用管道符分隔不同的实例。注意变体标签必须是大写字母开头的：
+
 ```ocaml
 # type basic_color =
    | Black | Red | Green | Yellow | Blue | Magenta | Cyan | White ;;
@@ -35,6 +37,7 @@ type basic_color =
 (* OCaml Utop ∗ variants/main.topscript ∗ all code *)
 ```
 下面的函数使用模式匹配把`basic_color`转换成相应的整数。模式匹配的完整性检查意味着当我们遗漏一个颜色时编译器会警告：
+
 ```ocaml
 # let basic_color_to_int = function
   | Black -> 0 | Red     -> 1 | Green -> 2 | Yellow -> 3
@@ -46,6 +49,7 @@ val basic_color_to_int : basic_color -> int = <fun>
 (* OCaml Utop ∗ variants/main.topscript , continued (part 1) ∗ all code *)
 ```
 使用上面的函数，我们就可以生成转义代码来改变一个字符串在终端中的颜色：
+
 ```ocaml
 # let color_by_number number text =
     sprintf "\027[38;5;%dm%s\027[0m" number text;;
@@ -59,12 +63,14 @@ Hello Blue World!
 ```
 在多数终端里，"Blue"都会以蓝色呈现。
 
-本例中，变体的实例是没有关联数据的简单标签。这本质上和C和Java等语言中的枚举类似。但我们会看到，变体的表达能力大大超过一个简单枚举。正好，枚举不足以有效表示一个现代终端可以显示的全部颜色了。许多终端，包括xterm，支持256种不同颜色，分为以下几组：
+本例中，变体的实例是没有关联数据的简单标签。这本质上和 C 和 Java 等语言中的枚举类似。但我们会看到，变体的表达能力大大超过一个简单枚举。正好，枚举不足以有效表示一个现代终端可以显示的全部颜色了。许多终端，包括 xterm，支持256种不同颜色，分为以下几组：
+
 - 八种基本颜色，分为普通和粗体
-- 一个6x6x6的RGB颜色立方体
-- 一个24层灰度色谱
+- 一个 6x6x6 的 RGB 颜色立方体
+- 一个 24 层灰度色谱
 
 我们还是用变体来表示这个更复杂的颜色空间，但这次，不同的标签会带有参数用以描述每种实例的数据。注意变体可以有多个参数，用`*`分隔：
+
 ```ocaml
 # type weight = Regular | Bold
   type color =
@@ -83,6 +89,7 @@ type color =
 (* OCaml Utop ∗ variants/main.topscript , continued (part 3) ∗ all code *)
 ```
 我们再一次用模式匹配将颜色转换为对应的数字。但这回，模式匹配就不仅仅是用以分离不同实例了，它也允许我们提取标签关联的数据：
+
 ```ocaml
 # let color_to_int = function
     | Basic (basic_color,weight) ->
@@ -108,11 +115,12 @@ A muted gray...
 ```
 
 ### 笼统实例和重构
->> Catch-All Cases and Refactoring
+>> Catch-All Cases and Refactoring（可以匹配一切的实例分支，我觉得这样翻译还是不错的，by clark）
 
-OCaml类型系统可以作为重构工具使用，当你的代码需要更新以匹配接口的修改时会警告你。这在变体上下文中尤为重要。
+OCaml 类型系统可以作为重构工具使用，当你的代码需要更新以匹配接口的修改时会警告你。这在变体上下文中尤其有价值。
 
 考虑一下，如果我们像下面这样修改了`color`的定义会怎样：
+
 ```ocaml
 # type color =
   | Basic of basic_color     (* basic colors *)
@@ -129,6 +137,7 @@ type color =
 (* OCaml Utop ∗ variants/catch_all.topscript , continued (part 1) ∗ all code *)
 ```
 我们实际上把`Basic`实例分成了`Basic`和`Bold`两个，且`Basic`的参数从两个变为一个。`color_to_int`仍然期望一个旧的变体结构，如果我们试图编译这段代码，编译器会发现这种失配：
+
 ```ocaml
 # let color_to_int = function
     | Basic (basic_color,weight) ->
@@ -143,6 +152,7 @@ Error: This pattern matches values of type 'a * 'b
 (* OCaml Utop ∗ variants/catch_all.topscript , continued (part 2) ∗ all code *)
 ```
 这里编译器报怨`Basic`标签参数个数错误。如果我们修复了这个问题，编译器又会给出第二个问题，那就是我们还没有处理新的`Bold`标签：
+
 ```ocaml
 # let color_to_int = function
     | Basic basic_color -> basic_color_to_int basic_color
@@ -159,6 +169,7 @@ color_to_int : color -> int = <fun>
 (* OCaml Utop ∗ variants/catch_all.topscript , continued (part 3) ∗ all code *)
 ```
 现在把这个改了，我们就获得了正确的实现：
+
 ```ocaml
 # let color_to_int = function
     | Basic basic_color -> basic_color_to_int basic_color
@@ -169,9 +180,10 @@ val color_to_int : color -> int = <fun>
 
 (* OCaml Utop ∗ variants/catch_all.topscript , continued (part 4) ∗ all code *)
 ```
-如你所见，类型错误指出了需要修正以完成代码重构的问题。这非常非常重要，但要使它可靠地工作，你的代码需要尽可能地让编译器有机会你发现bug。为此，有一个有用的经验法则，就是避免避免笼统地模式匹配。
+如你所见，类型错误指出了需要修正以完成代码重构的问题。这非常非常重要，但要使它可靠地工作，你的代码需要尽可能地让编译器有机会你发现 bug。为此，有一个有用的经验法则，就是避免避免在模式匹配中使用笼统实例。
 
 这里有一个例子展示了笼统实例与完整性检查之间的交互。假设我们想要一个`color_to_int`，它作用在老终端上，前16个颜色（普通和粗体的八个`basic_colors`）正常转换，而其它的一切都转换成白色。我们可以把这个函数写成下面这样：
+
 ```ocaml
 # let oldschool_color_to_int = function
     | Basic (basic_color,weight) ->
@@ -187,9 +199,10 @@ but a pattern was expected which matches values of type basic_color
 但是因为笼统实例包含了所有可能，当添加了`Bold`实例后，类型系统就不会再警告我们没有处理它了。我们可以避免笼统实例，使用显式的标签代替，这样就可以找回这种检查了。
 
 ### 结合记录和变体
-*代数数据类型*这个术语经常用以描述包括变体、记录和元组这几个类型的集合。代数数据类型可以作为用以描述数据的有用且强大的语言。核心原因是它们结合了两种不同类型： *积类型（product type）*，像元组和记录，把不同类型组合在一起，数学上类似于笛卡儿积；以及 *和类型(sum type)*，像变体，它可以把不同的可能组合在一个类型中，数学上类似于不相交并集。
+*代数数据类型*这个术语经常用以描述包括变体、记录和元组这几个类型的一组类型。代数数据类型是一种用以描述数据的有用且强大的语言。核心原因是它们结合了两种不同类型： *积类型（product type）*，像元组和记录，把不同类型组合在一起，数学上类似于笛卡儿积；以及 *和类型(sum type)*，像变体，它可以把不同的可能组合在一个类型中，数学上类似于不相交并集。
 
-代数数据类型的大部分能力都来自于其构建分层的和或积组合的能力。我们可以重新实现一下[第5章，记录](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_05_records.md)中描述的日志服务器类型。先回顾一下`Log_entry.t`的定义：
+代数数据类型的大部分能力都来自于其构建“和”或“积”的分层组合的能力。我们可以重新实现一下[第5章，记录](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_05_records.md)中描述的日志服务器类型。先回顾一下`Log_entry.t`的定义：
+
 ```ocaml
 # module Log_entry = struct
     type t =
@@ -213,6 +226,7 @@ module Log_entry :
 (* OCaml Utop ∗ variants/logger.topscript , continued (part 1) ∗ all code *)
 ```
 这个记录类型把多块数据组合在一个值中。就是单独一个`Log_entry`拥有一个`session_id`、一个`time`、一个`important`和一个`message`。更一般地，你可以把记录想成 *联合*。另一方面，变体是 *解析*，让你可以表示多个可能，如下所示：
+
 ```ocaml
 # type client_message = | Logon of Logon.t
                         | Heartbeat of Heartbeat.t
@@ -225,13 +239,15 @@ type client_message =
 
 (* OCaml Utop ∗ variants/logger.topscript , continued (part 2) ∗ all code *)
 ```
-一个`client_message`是一个`Logon`或`Heartbeat`或`Log_entry`。如果我们想要写出可以处理消息的通用代码，而不是只针对一个固定要类型，就需要像`client_message`这种包罗万象的的类型来代表不同的可能消息。然后我们可以匹配`client_message`来确定正在实际处理的消息类型。
+一个`client_message`是一个`Logon`或`Heartbeat`或`Log_entry`。如果我们想要写出可以处理消息的通用代码，而不是只针对一个固定类型，就需要像`client_message`这种包罗万象的的类型来代表不同的可能消息。然后我们可以匹配`client_message`来确定正在实际处理的消息类型。
 
-使用变体表示不同类型间的差异可以增加你类型的精确性，用记录则可以表示共享结构。考虑下面这个函数，接收一个`client_message`列表，返回给定用户的所有消息。代码通过折叠（fold）消息列表实现，积加器是下面两个元素的序对：
+使用变体表示不同类型间的差异可以增加你类型的精确性，用记录则可以表示共享结构。考虑下面这个函数，接收一个`client_message`列表，返回给定用户的所有消息。代码通过折叠（fold）消息列表实现，累加器是下面两个元素的序对：
+
 - 已经处理过的该用户的会话标识集合
 - 已处理过和该用户关联的消息集合
 
 具体代码如下：
+
 ```ocaml
 # let messages_for_user user messages =
     let (user_messages,_) =
@@ -260,9 +276,10 @@ val messages_for_user : string -> client_message list -> client_message list =
   
 (* OCaml Utop ∗ variants/logger.topscript , continued (part 3) ∗ all code *)
 ```
-上面的代码有一部分很难看，就是决定会话ID那部分逻辑。代码有点复杂，要关注每一种可能的消息类型（包括`Logon`实例，它是不可能出现在此处的）并在每个实例中提取会话ID。这种每个消息类型都处理的方式看起来是没有必要的，因为会话ID在所有的消息类型中的行为都一致。
+上面的代码有一部分很难看，就是决定会话 ID 那部分逻辑。代码有点重复，要关注每一种可能的消息类型（包括`Logon`实例，它是不可能出现在此处的）并在每个实例中提取会话 ID。这种每个消息类型都处理的方式看起来是没有必要的，因为会话 ID 在所有的消息类型中的行为都一致。
 
-我们可以重构我们的类型来改进，显式反映要在不同消息间共享的信息。第一步是减小每个消息记录的定义，使其只包含此记录独有的信息：
+我们可以重构类型来改进代码，以显式反映要在不同消息间共享的信息。第一步是减小每个消息记录的定义，使其只包含此记录独有的信息：
+
 ```ocaml
 # module Log_entry = struct
     type t = { important: bool;
@@ -284,6 +301,7 @@ module Logon : sig type t = { user : string; credentials : string; } end
 (* OCaml Utop ∗ variants/logger.topscript , continued (part 4) ∗ all code *)
 ```
 然后定义一个变体类型来组合这些类型：
+
 ```ocaml
 # type details =
     | Logon of Logon.t
@@ -297,7 +315,8 @@ type details =
 
 (* OCaml Utop ∗ variants/logger.topscript , continued (part 5) ∗ all code *)
 ```
-我们还需要一个单独的记录来包含所有消息共有的字段：
+我们还需要一个记录来包含所有消息共有的字段：
+
 ```ocaml
 # module Common = struct
     type t = { session_id: string;
@@ -310,6 +329,7 @@ module Common : sig type t = { session_id : string; time : Time.t; } end
 ```
 
 一个完整的消息可以用`Common.t`和一个`details`的序对表示。这样，我们就可以像下面这样重写之前的例子：
+
 ```ocaml
 # let messages_for_user user messages =
     let (user_messages,_) =
@@ -334,8 +354,7 @@ val messages_for_user :
 
 (* OCaml Utop ∗ variants/logger.topscript , continued (part 7) ∗ all code *)
 ```
-
-如你所见，提取会话ID的代码已被一个简单的表达式`common.Common.session_id`所代替。
+如你所见，提取会话 ID 的代码已被一个简单的表达式`common.Common.session_id`所代替。
 
 另外，这样的设计允许我们一旦知道了类型是什么，就可以向下转换到特定的消息类型，并转向只处理此种消息类型的代码。我们使用`Commin.t * details`类型来代表任意类型，也可以使用`Common.t * Logon.t`来表示一条登录消息。因此，如果我们有了处理单独消息类型的函数，就可以写出如下的分发函数：
 
@@ -357,6 +376,7 @@ Error: Unbound value handle_log_entry
 变体的另一个常见应用是表示树状数据结构。我们将通过走一遍一个简单布尔表达式语言的设计来展示如何做到这一点。这种语言在任何需要指定过滤器的地方都很有用，在从数据包分析器到邮件客户端的很多应用中，过滤器都有用处。
 
 这种语言中的表达式由一个变体`expr`定义，其中对每一种支持的表达式都对应一个标签：
+
 ```ocaml
 # type 'a expr =
     | Base  of 'a
@@ -376,9 +396,10 @@ type 'a expr =
 ```
 注意`expr`类型的定义是递归的，这意味着一个`expr`可以包含其它`expr`。同时，`expr`使用一个多态类型`'a`参数化，用以指定`Base`标签下值的类型。
 
-每个标签的目的都很直接。`And`、`Or`和`Not`是构建布尔表达式的基本运算符，`Const`用以输入常量true和false。
+每个标签的目的都很直接。`And`、`Or`和`Not`是构建布尔表达式的基本运算符，`Const`用以输入常量`true`和`false`。
 
 `Base`标签允许你把`expr`和你的应用联系起来，让你指定一些基本谓词类型的元素，其真或假取决于你的应用。如果你在给一个邮件处理器写过滤语言，你的基本谓词可能指定了你要针对邮件做的测试，如下所示：
+
 ```ocaml
 # type mail_field = To | From | CC | Date | Subject
   type mail_predicate = { field: mail_field;
@@ -390,6 +411,7 @@ type mail_predicate = { field : mail_field; contains : string; }
 (* OCaml Utop ∗ variants/blang.topscript , continued (part 1) ∗ all code *)
 ```
 使用上面的代码，我们就能以`mail_predicate`为基本谓词创建一个简单表达式了：
+
 ```ocaml
 # let test field contains = Base { field; contains };;
 val test : mail_field -> string -> mail_predicate expr = <fun>
@@ -407,6 +429,7 @@ And
 (* OCaml Utop ∗ variants/blang.topscript , continued (part 2) ∗ all code *)
 ```
 只能构造表达式还不够，我们还需要能对其求值。下面即是一个求值函数：
+
 ```ocaml
 # let rec eval expr base_eval =
     (* a shortcut, so we don't need to repeatedly pass [base_eval]
@@ -426,6 +449,7 @@ val eval : 'a expr -> ('a -> bool) -> bool = <fun>
 代码结构很清晰--我们只是在数据结构上使用模式匹配，根据标签施加合适的计算。要在具体例子中使用这个求值器，我们只需要写一个`base_eval`函数，用以求值一个基本谓词。
 
 表达式的另一个有用的操作符是简化。下面是一组简化构造函数，每一个对应于`expr`中的一个标签：
+
 ```ocaml
 # let and_ l =
     if List.mem l (Const false) then Const false
@@ -454,6 +478,7 @@ val not_ : 'a expr -> 'a expr = <fun>
 (* OCaml Utop ∗ variants/blang.topscript , continued (part 4) ∗ all code *)
 ```
 基于以上函数我们可以写一个简化例程.
+
 ```ocaml
 # let rec simplify = function
     | Base _ | Const _ as x -> x
@@ -466,6 +491,7 @@ val simplify : 'a expr -> 'a expr = <fun>
 (* OCaml Utop ∗ variants/blang.topscript , continued (part 5) ∗ all code *)
 ```
 我们可以将其作用于一个布尔表达式，看看简化得怎么样：
+
 ```ocaml
 # simplify (Not (And [ Or [Base "it's snowing"; Const true];
                        Base "it's raining"]));;
@@ -476,6 +502,7 @@ val simplify : 'a expr -> 'a expr = <fun>
 这里，它正确地将`Or`分支转换成`Const true`，然后完全消除了`And`，因为`And`只剩下一个有内容的元素了。
 
 然而，有一些简化被忽略了。看一下如果我们添加一个双重否定会怎样：
+
 ```ocaml
 # simplify (Not (And [ Or [Base "it's snowing"; Const true];
                        Not (Not (Base "it's raining"))]));;
@@ -483,7 +510,8 @@ val simplify : 'a expr -> 'a expr = <fun>
 
 (* OCaml Utop ∗ variants/blang.topscript , continued (part 7) ∗ all code *)
 ```
-它未能移除双重否定，原因显而易见。`not_`函数有一个笼统分支，所以除了它会显式处理的（即一个常量取反）以外，它会忽略一切。笼统分支通常都不是个好主意，代码写出的细节越多，双重否定处理的缺失就越明显：
+它未能移除双重否定，原因显而易见。`not_`函数有一个笼统实例，所以除了它会显式处理的（即一个常量取反）以外，它会忽略一切。笼统实例通常都不是个好主意，代码写出的细节越多，双重否定处理的缺失就越明显：
+
 ```ocaml
 # let not_ = function
     | Const b -> Const (not b)
@@ -494,6 +522,7 @@ val not_ : 'a expr -> 'a expr = <fun>
 (* OCaml Utop ∗ variants/blang.topscript , continued (part 8) ∗ all code *)
 ```
 当然我们可以简单添加一个处理双重否定的分支来解决此问题：
+
 ```ocaml
 # let not_ = function
     | Const b -> Const (not b)
@@ -504,14 +533,15 @@ val not_ : 'a expr -> 'a expr = <fun>
 
 (* OCaml Utop ∗ variants/blang.topscript , continued (part 9) ∗ all code *)
 ```
-布尔达式的例子可不仅仅是个玩具。Core中有一个很类似的模块叫`Blang`（“Boolean language”的缩写），它在很多应用中都广泛使用。简化算法很有用，特别是在一些基本谓词已知的情况下，你想用其来研究表达式的求值时。
+布尔达式的例子可不仅仅是个玩具。`Core`中有一个很类似的模块叫`Blang`（“Boolean language”的缩写），它在很多应用中都广泛使用。简化算法很有用，特别是在一些基本谓词已知的情况下，你想用其来研究表达式的求值时。
 
 更一般地，用变体构建递归数据结构是一种常用技术，从设计小语言到构造复杂数据结构，到处都在使用。
 
 ### 多态变体
-除了我们已经见到的普通变体，OCaml还支持多态变体。我们将会看到，多态变体更灵活，语法上也比普通变体强大，但额外的功能必然也有额外的代价。
+除了我们已经见到的普通变体，OCaml 还支持*多态变体*。我们将会看到，多态变体更灵活，语法上也比普通变体更轻量，但额外的强大必然也有额外的代价。
 
 语法上讲，多态变体以前导的撇号和普通变体相区别。且和普通变体不同，多态变体没有显式的类型声明也可以使用：
+
 ```ocaml
 # let three = `Int 3;;
 val three : [> `Int of int ] = `Int 3
@@ -524,9 +554,10 @@ val nan : [> `Not_a_number ] = `Not_a_number
 [`Int 3; `Float 4.; `Not_a_number]
 (* OCaml Utop ∗ variants/main.topscript , continued (part 6) ∗ all code *)
 ```
-如你所见，多态变体类型可以被自动推导，当我们把多个不同标签的变体组合在一起时，编译器会推导出一个新类型，这个类型可以知道所有这些标签。注意，在上面的例子中，标签名（如`` `Int``）和类型名(`int`)是匹配的。这在OCaml中是个常见的惯例。
+如你所见，多态变体类型可以被自动推导，当我们把多个不同标签的变体组合在一起时，编译器会推导出一个新类型，这个类型可以知道所有这些标签。注意，在上面的例子中，标签名（如`` `Int``）和类型名(`int`)是匹配的。这在 OCaml 中是个常见的惯例。
 
 同一个标签以不兼容的方式使用时，编译器会指出：
+
 ```ocaml
 # let five = `Int "five";;
 val five : [> `Int of string ] = `Int "five"
