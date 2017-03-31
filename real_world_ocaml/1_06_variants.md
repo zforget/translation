@@ -102,6 +102,7 @@ val color_to_int : color -> int = <fun>
 (* OCaml Utop ∗ variants/main.topscript , continued (part 4) ∗ all code *)
 ```
 现在我们就可以使用全部可用颜色来打印文本了：
+
 ```ocaml
 # let color_print color s =
      printf "%s\n" (color_by_number (color_to_int color) s);;
@@ -573,6 +574,7 @@ Error: This expression has type [> `Int of string ]
 开头的`>`是必须是，因为它标明这个类型是开放的，可以和其它变体类型组合。我们可以将`` [> `Int of string | `Float of float]``这样解读：描述了一个标签为`` `Int of string``和`` `Float of float``的变体类型，但还可以包含更多的标签。换句话说，你可以简单地把`>`当作“这些或更多的标签”。
 
 有些情况下OCaml会推导出带`<`的类型，表示“这些或更少的标签”，如下所示：
+
 ```ocaml
 # let is_positive = function
      | `Int   x -> x > 0
@@ -584,7 +586,8 @@ val is_positive : [< `Float of float | `Int of int ] -> bool = <fun>
 ```
 有`<`是因为`is_positive`无法处理含有`` `Float of float`` 或`` `Int of int``以外标签的值。
 
-我们可以把这些`<`和`>`标记看作已有标签的上下边界。如果标签集即是上边界又是下边界，我们就得到了一个确切的多态变体类型，什么标记都没有。例如：
+我们可以把这些`<`和`>`标记看作已有标签的上下边界。如果标签集即是上边界又是下边界，我们就得到了一个*确切的*多态变体类型，什么标记都没有。例如：
+
 ```ocaml
 # let exact = List.filter ~f:is_positive [three;four];;
 val exact : [ `Float of float | `Int of int ] list = [`Int 3; `Float 4.]
@@ -592,6 +595,7 @@ val exact : [ `Float of float | `Int of int ] list = [`Int 3; `Float 4.]
 (* OCaml Utop ∗ variants/main.topscript , continued (part 9) ∗ all code *)
 ```
 这可能今人吃惊，我们也可以创建有不同上下边界的多态变体类型。注意下例中的`Ok`和`Error`来自Core中的`Result.t`类型：
+
 ```ocaml
 # let is_positive = function
      | `Int   x -> Ok (x > 0)
@@ -610,7 +614,8 @@ val is_positive :
 这里，推导出来类型表示标签不能多于`` `Float`` 、`` `Int``和`` `Not_a_number``，但又必须包含`` `Float``和`` `Int``。你已经看到了，多态变体可能会导致异常复杂的推导类型。
 
 #### 例子：再看终端颜色
-现在看一下实践中如何使用多态变体，我们回过头来看一下终端颜色的例子。假设我们有一个新的添加了更多颜色的终端颜色类型，添加alpha通道，使你可以指定颜色的透明度。我们可以使用普通变体像下面这样对这个颜色集建模：
+现在看一下实践中如何使用多态变体，我们回过头来看一下终端颜色的例子。假设我们有一个新的添加了更多颜色的终端颜色类型，比如说添加了 alpha 通道，使你可以指定颜色的透明度。我们可以使用普通变体像下面这样对这个颜色集建模：
+
 ```ocaml
 # type extended_color =
     | Basic of basic_color * weight  (* basic colors, regular and bold *)
@@ -627,6 +632,7 @@ type extended_color =
 (* OCaml Utop ∗ variants/main.topscript , continued (part 11) ∗ all code *)
 ```
 我们想要写一个`extended_color_to_int`函数，对老类型作用和`color_to_int`一样，只是添加了处理包含alpha通道颜色的新逻辑。有人可能会写出下面的代码：
+
 ```ocaml
 # let extended_color_to_int = function
     | RGBA (r,g,b,a) -> 256 + a + b * 6 + g * 36 + r * 216
@@ -639,6 +645,7 @@ Characters 154-159: Error: This expression has type extended_color but an expres
 代码看起来挺合理，但是它会引起类型错误，因为在编译器看来，`extended_color`和`color`是两个不同的没有关系的类型。编译器不会识别两个类型中相同的基本标签。
 
 我们想要做的就是在两个不同变体类型之间共享标签，而多态变体正好可以以一种自然的方式做到这一点。首先，我们用多态变体重写`basic_color_to_int`和`color_to_int`。转换相当直接：
+
 ```ocaml
 # let basic_color_to_int = function
     | `Black -> 0 | `Red     -> 1 | `Green -> 2 | `Yellow -> 3
@@ -672,6 +679,7 @@ val color_to_int :
 (* OCaml Utop ∗ variants/main.topscript , continued (part 13) ∗ all code *)
 ```
 现在我们可以尝试写`extended_color_to_int`了。代码的关键是`extended_color_to_int`要以窄化的类型（即更少的标签）调用`color_to_int`。正常来讲，这种窄化可以使用模式匹配来完成。下面的代码中，`color`变量只包含`` `Basic``、`` `RGB``和`` `Gray``标签，而不包含`` `RGBA``标签：
+
 ```ocaml
 # let extended_color_to_int = function
     | `RGBA (r,g,b,a) -> 256 + a + b * 6 + g * 36 + r * 216
@@ -696,6 +704,7 @@ val extended_color_to_int :
 (* OCaml Utop ∗ variants/main.topscript , continued (part 14) ∗ all code *)
 ```
 上面的代码比通常想像的都要平衡。实际上，如果我们用一个笼统的分支代替显式的枚举，那么类型就不会被窄化，编译就会失败：
+
 ```ocaml
 # let extended_color_to_int = function
     | `RGBA (r,g,b,a) -> 256 + a + b * 6 + g * 36 + r * 216
@@ -724,6 +733,7 @@ Error: This expression has type [> `RGBA of int * int * int * int ]
 > **多态变体和笼统分支(catch-all cases)**
 > 
 > 之前见到的`is_positive`定义中，`match`语句导致推导出一个有上边界的变体类型，限制了匹配可以处理的标签。如果我们在`match`语句上添加一个笼统分支，就会得到一个有下边界的类型：
+> 
 > ```ocaml
 > # let is_positive_permissive = function
 >     | `Int   x -> Ok (x > 0)
@@ -739,6 +749,7 @@ Error: This expression has type [> `RGBA of int * int * int * int ]
 > (* OCaml Utop ∗ variants/main.topscript , continued (part 16) ∗ all code *)
 > ```
 > 即使是使用普通变体，笼统分支也是滋生错误的温床，但是和多态变体一起使用时，这个问题尤为严重。因为你无法界定你的函数可以处理哪些标签。这种代码特别容易受输入错误的影响。举个例子，如果代码中传递给`is_positive_permissive`的`Float`误拼成了`Floot`，错误的代码也可以编译并不报错。
+> 
 > ```ocaml
 > # is_positive_permissive (`Floot 3.5);;
 > - : (bool, string) Result.t = Error "Unknown number type"
@@ -746,7 +757,8 @@ Error: This expression has type [> `RGBA of int * int * int * int ]
 > ```
 > 使用普通变体，这种输入错误会导致一个不识别的标签。通常，混合使用笼统分支和多态变体时都要格外小心。、
 
-对在让我们来考虑一下如何把我们的代码装进一个合适的库，实现在ml文件中，接口在单独的mli文件中，就和[第四章，文件、模块和程序](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_04_files_modules_and_programs.md)中看到的那样。让我们从mli文件开始：
+现在让我们来考虑一下如何把我们的代码装进一个合适的库，实现在 ml 文件中，接口在单独的 mli 文件中，就和[第四章，文件、模块和程序](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_04_files_modules_and_programs.md)中看到的那样。让我们从 mli 文件开始：
+
 ```ocaml
 open Core.Std
 
@@ -769,6 +781,7 @@ val extended_color_to_int : extended_color -> int
 (* OCaml ∗ variants-termcol/terminal_color.mli ∗ all code *)
 ```
 这里， `extended_color`被显式地定义为`color`的一个扩展。同时，注意我们把所有类型都定义成了确切变体。我们可以像下面这样实现这个库：
+
 ```ocaml
 open Core.Std
 
@@ -803,9 +816,10 @@ let extended_color_to_int = function
 
 (* OCaml ∗ variants-termcol/terminal_color.ml ∗ all code *)
 ```
-在上面的代码中，定义`extended_color_to_int`时我们做了一些有趣的事来暴露多态变体的劣势。我们添加了一个特别的分支来处理灰色，而不是使用`color_to_int`。但不幸的是，我们把`Gray`误拼成了`Grey`。使用普通变体时编译器显然应该会捕捉到这个错误，但是使用多态变体，编译没有任何问题。所有的不同就是编译器为`extended_color_to_int`推导出了一个更宽的类型，它恰好与mli文件中列出的较窄的类型兼容。
+在上面的代码中，定义`extended_color_to_int`时我们做了一些有趣的事来暴露多态变体的劣势。我们添加了一个特别的分支来处理灰色，而不是使用`color_to_int`。但不幸的是，我们把`Gray`误拼成了`Grey`。使用普通变体时编译器显然应该会捕捉到这个错误，但是使用多态变体，编译没有任何问题。所有的不同就是编译器为`extended_color_to_int`推导出了一个更宽的类型，它恰好与 mli 文件中列出的较窄的类型兼容。
 
-如果我们给代码添加一个类型注释（不仅是在mli中），那么编译器就会有足够的信息来警告我们了：
+如果我们给代码添加一个类型注释（不仅是在 mli 中），那么编译器就会有足够的信息来警告我们了：
+
 ```ocaml
 let extended_color_to_int : extended_color -> int = function
   | `RGBA (r,g,b,a) -> 256 + a + b * 6 + g * 36 + r * 216
@@ -813,6 +827,7 @@ let extended_color_to_int : extended_color -> int = function
   | (`Basic _ | `RGB _ | `Gray _) as color -> color_to_int color
 ```
 这样编译器就会报怨`` `Grey``分支没有使用：
+
 ```bash
 $ corebuild terminal_color.native
 File "terminal_color.ml", line 30, characters 4-11:
@@ -823,6 +838,7 @@ Command exited with code 2.
 Terminal ∗ variants-termcol-annotated/build.out ∗ all code
 ```
 一旦定义了类型，我们就可以重新审视如何写出窄化类型的模式匹配这个问题。我们可以显式地使用类型名作为模式匹配的一部分，加一个`#`前缀：
+
 ```ocaml
 let extended_color_to_int : extended_color -> int = function
   | `RGBA (r,g,b,a) -> 256 + a + b * 6 + g * 36 + r * 216
@@ -840,13 +856,13 @@ let extended_color_to_int : extended_color -> int = function
    正如我们所见，多态变体的类型规则比普通变体要复杂得多。这意味着重度使用多态会让你在查看为什么一段代码为什么能或不能编译时抓狂。也会使错误消息冗长并难以解读。实际上，值层面上的简洁往往是牺牲了类型层面的复杂性。
 - 错误查找
 
-  多态类型是类型安全的，但是需要小心输入，其灵活性使它不容易捕捉你程序中的bug。
+  多态类型是类型安全的，但是它们的类型规则，因其灵活性使它不容易捕捉你程序中的 bug。
 - 效率
 
-  这一点影响不是非常大，但多态变体会比普通变体重一些，OCaml不能给多态类型的模式匹配生成和普通变体那样就效的代码。
+  这一点影响不是非常大，但多态变体会比普通变体重一些，OCaml 不能给多态类型的模式匹配生成和普通变体那样就效的代码。
 
-就是说，多态变体仍然是有用的强大的特性，但理解其局限性并搞清楚如何明智且慬慎地使用它们是值得的。
+综上所述，多态变体仍然是有用的强大的特性，但理解其局限性并搞清楚如何明智且慬慎地使用它们是值得的。
 
-可能最安全也是最常见的多态变体使用场景是普通变体也足够但却太重量级时。比如，你经常想要创建一个变体类型来编码输入或输出，又不值得为这声明一个单独的类型。这时多态类型就非常有用了，和使用类型注释把它们限制到显式的、明确的类型上一样，都可以很好地工作。
+可能最安全也是最常见的多态变体使用场景是普通变体也足够但语法上却过重时。比如，你经常想要创建一个变体类型来编码输入或输出，又不值得为这声明一个单独的类型。这时多态类型就非常有用了，和使用类型注释把它们限制到显式的、明确的类型上一样，都可以很好地工作。
 
-变体最有问题的地方也是其最强大的地方；特别是当你使用多态变体支持标签重叠的功能时。这涉及OCaml对子类化的支持。正如我们将在[第11章，对象](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_11_objects.md)中讨论的那样，子类化带来许多复杂性，多数时候，这种复杂性是应该避免的。
+变体最有问题的地方也是其最强大的地方；特别是当你使用多态变体支持标签重叠的功能时。这涉及 OCaml 对子类型的支持。正如我们将在[第11章，对象](https://github.com/zforget/translation/blob/master/real_world_ocaml/1_11_objects.md)中讨论的那样，子类化带来许多复杂性，多数时候，这种复杂性是应该避免的。
