@@ -565,11 +565,61 @@ int p = getpid();  // allowed, as long as no other static variable
 
 
 
+## `thread_local`变量
+
+不是定义在函数内部的`thread_local`变量必须使用一个真正的编译期常量进行初始化，这必须使用[`ABSL_CONST_INIT`](https://github.com/abseil/abseil-cpp/blob/master/absl/base/attributes.h)属性强制限定。相对于其它定义线程本地变量的方法，优先使用`thread_local`。
+
+### 定义：
+
+从 C++11 开始，变量可以用`thread_local`声明：
+
+```c++
+thread_local Foo foo = ...;
+```
+
+这样的变量其实是一个对象的集合，这样不同的线程访问它时，其它是访问的不同对象。`thread_local`变量和[静态存储周期变量](#静态和全局变量)在很多方面都很像。比如，它们都可以被声明在命名空间中、函数内部或静态成员函数，不能声明成普通类成员。
+
+`thread_local`变量实例的初始化和静态变量一样，除了它们需要在不同的线程中分别声明，而不是只在程序启动时声明一次。这意味着在函数内部声明的`thread_local`变量是安全的，但是其它的`thread_local`变量面临和静态变量（以及其它变量）一样的初始化顺序问题。
+
+`thread_local`变量实例在线程结束时销毁，所有他们没有静态变量那样的析构顺序问题。
+
+### 优点：
+
+- 线程本地变量天生是安全的（因为只有一个线程能访问），这使`thread_local`在并发编程中非常有用。
+- `thread_local`是唯一一种标准支持的创建线程本地变量的方法。
+
+### 缺点：
+
+- 访问`thread_local`变量可能触发不可预测的、不可控的其它代码的执行。
+- `thread_local`变量实际上是全局变量，有除线程安全外全局变量所有的缺点。
+- `thread_local`变量消耗的内部和线程数成正比（在最坏的情况下），在一个程序中这可能会很大。
+- 一个普通的类成员工能是`thread_local`的。
+- `thread_local`可能没有编译器内部函数那么高效。
+
+### 结论：
+
+函数内部的`thread_local`变量没有安全问题，可以无限制使用。注意，通过定义一个函数或静态方法，你可以使用一个函数作用域的`thread_local`变量来模拟类或命名空间作用域的`thread_local`变量：
+
+```c++
+Foo& MyThreadLocalFoo() {
+  thread_local Foo result = ComplicatedInitialization();
+  return result;
+}
+```
+
+类或命名空间中的`thread_local`变量必须使用真正编译期的常量初始化（即它们必须没有动态初始化）。为了强制这一点，类或命名空间中`thread_local`变量必须用[`ABSL_CONST_INIT`](https://github.com/abseil/abseil-cpp/blob/master/absl/base/attributes.h)（或`constexpr`，但不常用）限定：
+
+```c++
+ABSL_CONST_INIT thread_local Foo foo = ...;
+```
+
+相对于其它定义线程本地数据的方法，应该优先使用`thread_local`。
+
+
+
+
+
 TODO HERE
-
-### `thread_local`变量
-
-
 
 # 类
 
